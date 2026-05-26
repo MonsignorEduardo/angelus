@@ -80,6 +80,7 @@ defmodule Angelus.Spice.WorkerProtocol do
           {:ok, request_id(), term()}
           | {:error, request_id(), term()}
           | {:error, :decode_error, binary()}
+  @spec decode(term()) :: {:error, :decode_error, term()}
   def decode(binary) when is_binary(binary) do
     case Jason.decode(binary) do
       {:ok, %{"id" => id, "ok" => true, "result" => result}} ->
@@ -105,6 +106,7 @@ defmodule Angelus.Spice.WorkerProtocol do
   with atom keys and typed values.
   """
   @spec coerce_state(map()) :: {:ok, map()} | {:error, :invalid_state_result}
+  @spec coerce_state(term()) :: {:error, :invalid_state_result}
   def coerce_state(%{
         "state_km" => [x, y, z, vx, vy, vz],
         "distance_au" => distance_au,

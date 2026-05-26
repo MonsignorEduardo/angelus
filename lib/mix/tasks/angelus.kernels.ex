@@ -28,7 +28,9 @@ defmodule Mix.Tasks.Angelus.Kernels do
     "plu060.bsp" => "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/plu060.bsp"
   }
 
+  @doc "Downloads and validates the v0.1 JPL/NAIF kernel set."
   @impl true
+  @spec run([String.t()]) :: :ok | no_return()
   def run(args) do
     {opts, rest, invalid} = OptionParser.parse(args, strict: [force: :boolean])
 

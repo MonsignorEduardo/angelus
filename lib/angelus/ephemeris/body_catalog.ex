@@ -1,5 +1,5 @@
-defmodule Angelus.Spice.BodyTargets do
-  @moduledoc false
+defmodule Angelus.Ephemeris.BodyCatalog do
+  @moduledoc "Canonical v0.1 ephemeris body catalog and SPICE target metadata."
 
   @targets %{
     sun: %{spice_target: "SUN", spice_id: 10, target_kind: :body_center},
@@ -62,11 +62,11 @@ defmodule Angelus.Spice.BodyTargets do
     }
   }
 
-  @doc false
+  @doc "Returns all public body atoms supported by the v0.1 ephemeris API."
   @spec supported_bodies() :: [atom()]
   def supported_bodies, do: Map.keys(@targets)
 
-  @doc false
+  @doc "Fetches catalog metadata for a public ephemeris body atom."
   @spec fetch(atom()) :: {:ok, map()} | {:error, {:unsupported_body, atom()}}
   @spec fetch(term()) :: {:error, {:unsupported_body, term()}}
   def fetch(body) when is_atom(body) do

@@ -1,9 +1,10 @@
 defmodule Angelus.Application do
-  @moduledoc false
+  @moduledoc "OTP application entry point for Angelus."
 
   use Application
 
   @impl true
+  @spec start(Application.start_type(), term()) :: Supervisor.on_start()
   def start(_type, _args) do
     children = [Angelus.Spice.Supervisor]
 

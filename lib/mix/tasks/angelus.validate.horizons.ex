@@ -5,7 +5,9 @@ defmodule Mix.Tasks.Angelus.Validate.Horizons do
 
   @fixture Path.join(["test", "fixtures", "horizons", "de442_positions.json"])
 
+  @doc "Validates or regenerates local JPL Horizons fixtures according to CLI args."
   @impl true
+  @spec run([String.t()]) :: :ok | no_return()
   def run(args) do
     case OptionParser.parse(args, strict: [check: :boolean, write: :boolean]) do
       {[check: true], [], []} ->
