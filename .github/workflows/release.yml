@@ -110,7 +110,7 @@ jobs:
           mix elixir_make.precompile
 
       - name: Upload artefacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: cache/*.tar.gz
 
@@ -152,7 +152,7 @@ jobs:
           mix elixir_make.precompile
 
       - name: Upload artefacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: cache/*.tar.gz
 
@@ -181,7 +181,7 @@ jobs:
           cat checksum-angelus.exs
 
       - name: Upload checksum file
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: checksum-angelus.exs
 
