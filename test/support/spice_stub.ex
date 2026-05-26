@@ -1,0 +1,85 @@
+defmodule Angelus.SpiceStub do
+  @moduledoc """
+  Stub adapter for `Angelus.Ephemeris` tests that do not require a compiled
+  `priv/spice_worker` binary or downloaded kernels.
+
+  Usage in tests:
+
+      Angelus.Ephemeris.positions([:sun], datetime, adapter: Angelus.SpiceStub)
+
+  The stub returns synthetic but structurally valid responses using canned
+  data keyed by `{body, datetime}`.  Any unknown combination returns an error.
+  """
+
+  @behaviour Angelus.Ephemeris.Adapter
+
+  @kernel_metadata %{
+    ephemeris: :de442,
+    kernel_policy: :default_modern,
+    public_range: %{from: ~D[1900-01-01], to: ~D[2100-01-24]},
+    kernels: []
+  }
+
+  # Canned ET values keyed by datetime
+  @et_map %{
+    ~U[1990-05-24 06:30:00Z] => -302_378_400.0,
+    ~U[2026-01-01 00:00:00Z] => 820_454_469.184,
+    ~U[1900-06-01 00:00:00Z] => -3_155_630_400.0
+  }
+
+  # Canned state data keyed by {body, et}
+  @state_map %{
+    {:sun, -302_378_400.0} => %{
+      spice_target: "SUN",
+      spice_id: 10,
+      target_kind: :body_center,
+      position_km: {-7.0e7, 1.2e8, 4.0e4},
+      velocity_km_s: {-25.0, -14.0, 0.0},
+      light_time_seconds: 499.0,
+      ecliptic_longitude: 63.25,
+      ecliptic_latitude: 0.0002,
+      distance_au: 1.012
+    },
+    {:moon, -302_378_400.0} => %{
+      spice_target: "MOON",
+      spice_id: 301,
+      target_kind: :body_center,
+      position_km: {3.2e5, -2.1e5, 1.0e4},
+      velocity_km_s: {0.9, 0.9, 0.0},
+      light_time_seconds: 1.3,
+      ecliptic_longitude: 197.88,
+      ecliptic_latitude: -3.1,
+      distance_au: 0.002_572
+    },
+    {:jupiter, -302_378_400.0} => %{
+      spice_target: "JUPITER",
+      spice_id: 599,
+      target_kind: :body_center,
+      position_km: {5.2e8, 3.1e8, -1.2e7},
+      velocity_km_s: {-7.4, 10.2, 0.2},
+      light_time_seconds: 2_760.0,
+      ecliptic_longitude: 102.1,
+      ecliptic_latitude: 0.9,
+      distance_au: 4.98
+    }
+  }
+
+  @impl true
+  def utc_to_et(%DateTime{} = datetime) do
+    case Map.fetch(@et_map, datetime) do
+      {:ok, et} -> {:ok, et}
+      :error -> {:error, {:stub_unknown_datetime, datetime}}
+    end
+  end
+
+  @impl true
+  def state(body, et) do
+    case Map.fetch(@state_map, {body, et}) do
+      {:ok, data} ->
+        {:ok, Map.put(data, :kernel_metadata, @kernel_metadata)}
+
+      :error ->
+        {:error, {:stub_unknown_state, {body, et}}}
+    end
+  end
+end

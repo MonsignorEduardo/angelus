@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  MIX_ENV: prod
+  ELIXIR_VERSION: "1.19"
+  OTP_VERSION: "27"
+
+jobs:
+  # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
+  precompile-macos:
+    name: Precompile / aarch64-apple-darwin
+    runs-on: macos-14  # M1 runner
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Cache native/libs (CSPICE + jsmn)
+        uses: actions/cache@v4
+        with:
+          path: native/libs
+          key: native-libs-aarch64-apple-darwin-${{ hashFiles('native/native_sources.lock') }}
+
+      - name: Get Elixir deps
+        run: mix deps.get
+
+      - name: Precompile
+        env:
+          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+        run: |
+          mkdir -p cache
+          mix elixir_make.precompile
+
+      - name: Upload artefacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: cache/*.tar.gz
+
+  # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
+  precompile-linux:
+    name: Precompile / x86_64-linux-gnu
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential curl jq
+
+      - name: Cache native/libs (CSPICE + jsmn)
+        uses: actions/cache@v4
+        with:
+          path: native/libs
+          key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+
+      - name: Get Elixir deps
+        run: mix deps.get
+
+      - name: Precompile
+        env:
+          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+        run: |
+          mkdir -p cache
+          mix elixir_make.precompile
+
+      - name: Upload artefacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: cache/*.tar.gz
+
+  # ── Generate checksum file ────────────────────────────────────────────────
+  checksum:
+    name: Generate checksum
+    needs: [precompile-macos, precompile-linux]
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Get Elixir deps
+        run: mix deps.get
+
+      - name: Fetch all precompiled artefacts and generate checksum
+        run: |
+          MIX_ENV=prod mix elixir_make.checksum --all --ignore-unavailable
+          cat checksum-angelus.exs
+
+      - name: Upload checksum file
+        uses: softprops/action-gh-release@v2
+        with:
+          files: checksum-angelus.exs
