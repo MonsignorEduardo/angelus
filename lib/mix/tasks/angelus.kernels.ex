@@ -5,8 +5,6 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   alias Angelus.Spice.KernelSet
 
-  @shortdoc "Downloads Angelus v0.1 kernels"
-
   @urls %{
     "latest_leapseconds.tls" =>
       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/latest_leapseconds.tls",
@@ -133,4 +131,6 @@ defmodule Mix.Tasks.Angelus.Kernels do
       |> Enum.each(&File.rm/1)
     end
   end
+
+  @shortdoc "Downloads Angelus v0.1 kernels"
 end

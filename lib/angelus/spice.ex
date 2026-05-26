@@ -1,6 +1,7 @@
 defmodule Angelus.Spice do
   @moduledoc "Public SPICE facade with v0.1 kernel policy validation."
 
+  alias Angelus.Spice.BodyTargets
   alias Angelus.Spice.KernelSet
   alias Angelus.Spice.Server
 
@@ -13,7 +14,7 @@ defmodule Angelus.Spice do
       true
   """
   @spec supported_bodies() :: [atom()]
-  def supported_bodies, do: Angelus.Spice.BodyTargets.supported_bodies()
+  def supported_bodies, do: BodyTargets.supported_bodies()
 
   @doc """
   Returns the list of kernel filenames required by the default v0.1 kernel set.
@@ -96,18 +97,6 @@ defmodule Angelus.Spice do
     end
   end
 
-  defp load_default_kernels(opts) do
-    base_path = Keyword.get(opts, :base_path, Path.join([File.cwd!(), "priv", "kernels"]))
-    replace? = Keyword.get(opts, :replace, false)
-
-    opts
-    |> reject_unknown_options([:base_path, :replace])
-    |> case do
-      :ok -> Server.load_kernels(KernelSet.default_paths(base_path), replace: replace?)
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   @doc """
   Converts a UTC `%DateTime{}` to an ephemeris time (ET) seconds-past-J2000 float.
 
@@ -175,7 +164,19 @@ defmodule Angelus.Spice do
     * `{:error, {:unsupported_body, atom()}}` when the body is not recognised.
   """
   @spec body_target(atom()) :: {:ok, map()} | {:error, {:unsupported_body, atom()}}
-  def body_target(body), do: Angelus.Spice.BodyTargets.fetch(body)
+  def body_target(body), do: BodyTargets.fetch(body)
+
+  defp load_default_kernels(opts) do
+    base_path = Keyword.get(opts, :base_path, Path.join([File.cwd!(), "priv", "kernels"]))
+    replace? = Keyword.get(opts, :replace, false)
+
+    opts
+    |> reject_unknown_options([:base_path, :replace])
+    |> case do
+      :ok -> Server.load_kernels(KernelSet.default_paths(base_path), replace: replace?)
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
   defp reject_unknown_options(opts, supported) do
     case Enum.find(opts, fn {key, _value} -> key not in supported end) do

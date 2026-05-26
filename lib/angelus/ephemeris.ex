@@ -89,19 +89,23 @@ defmodule Angelus.Ephemeris do
          :ok <- validate_supported_bodies(bodies),
          :ok <- validate_public_range(datetime),
          {:ok, et} <- adapter.utc_to_et(datetime) do
-      bodies
-      |> Enum.reduce_while({:ok, %{}}, fn body, {:ok, acc} ->
-        case build_position(body, et, adapter) do
-          {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
-          {:error, reason} -> {:halt, {:error, reason}}
-        end
-      end)
+      build_positions(bodies, et, adapter)
     end
   end
 
+  defp build_positions(bodies, et, adapter) do
+    Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
+      case build_position(body, et, adapter) do
+        {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
   defp build_position(body, et, adapter) do
-    with {:ok, state} <- adapter.state(body, et),
-         longitude = Angelus.Angle.normalize(state.ecliptic_longitude) do
+    with {:ok, state} <- adapter.state(body, et) do
+      longitude = Angelus.Angle.normalize(state.ecliptic_longitude)
+
       {:ok,
        %BodyPosition{
          body: body,

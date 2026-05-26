@@ -3,7 +3,6 @@ defmodule Mix.Tasks.Angelus.Validate.Horizons do
 
   use Mix.Task
 
-  @shortdoc "Validates JPL Horizons fixtures"
   @fixture Path.join(["test", "fixtures", "horizons", "de442_positions.json"])
 
   @impl true
@@ -89,4 +88,6 @@ defmodule Mix.Tasks.Angelus.Validate.Horizons do
       _case -> {:error, :invalid_case_shape}
     end
   end
+
+  @shortdoc "Validates JPL Horizons fixtures"
 end
