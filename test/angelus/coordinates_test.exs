@@ -9,11 +9,13 @@ defmodule Angelus.CoordinatesTest do
 
     assert {:ok, result} =
              Coordinates.normalize_ecliptic(%{ecliptic_longitude: 360.0, ecliptic_latitude: 1.5})
+
     assert abs(result.ecliptic_longitude) < 1.0e-10
     assert result.ecliptic_latitude == 1.5
 
     assert {:ok, result721} =
              Coordinates.normalize_ecliptic(%{ecliptic_longitude: 721.0, ecliptic_latitude: 0.0})
+
     assert result721.ecliptic_longitude == 1.0
     assert abs(result721.ecliptic_latitude) < 1.0e-10
   end
