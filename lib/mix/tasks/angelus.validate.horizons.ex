@@ -39,6 +39,7 @@ defmodule Mix.Tasks.Angelus.Validate.Horizons do
     end
   end
 
+  @spec write!() :: no_return()
   defp write! do
     Mix.raise(
       "--write requires live JPL Horizons query support, which is not implemented in this first v0.1 scaffold"

@@ -62,8 +62,13 @@ defmodule Angelus.Spice.BodyTargets do
     }
   }
 
+  @doc false
+  @spec supported_bodies() :: [atom()]
   def supported_bodies, do: Map.keys(@targets)
 
+  @doc false
+  @spec fetch(atom()) :: {:ok, map()} | {:error, {:unsupported_body, atom()}}
+  @spec fetch(term()) :: {:error, {:unsupported_body, term()}}
   def fetch(body) when is_atom(body) do
     case Map.fetch(@targets, body) do
       {:ok, target} -> {:ok, target}

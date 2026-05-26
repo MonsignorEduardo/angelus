@@ -10,11 +10,24 @@ defmodule Angelus.Spice.Server do
 
   # ── Public API ───────────────────────────────────────────────────────────
 
+  @doc false
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
+  @doc false
+  @spec load_kernels([String.t()], keyword()) :: {:ok, map()} | {:error, term()}
   def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
+
+  @doc false
+  @spec utc_to_et(DateTime.t()) :: {:ok, float()} | {:error, term()}
   def utc_to_et(datetime), do: call({:utc_to_et, datetime})
+
+  @doc false
+  @spec state(atom(), float(), keyword()) :: {:ok, map()} | {:error, term()}
   def state(body, et, opts), do: call({:state, body, et, opts})
+
+  @doc false
+  @spec metadata() :: {:ok, map() | nil}
   def metadata, do: call(:metadata)
 
   # ── GenServer ────────────────────────────────────────────────────────────

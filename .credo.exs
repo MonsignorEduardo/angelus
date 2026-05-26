@@ -140,6 +140,7 @@
              )a
            ]},
           {Credo.Check.Readability.WithSingleClause, []},
+          {Credo.Check.Readability.Specs, []},
 
           #
           ## Refactoring Opportunities
@@ -211,7 +212,6 @@
           {Credo.Check.Readability.SeparateAliasRequire, []},
           {Credo.Check.Readability.SingleFunctionToBlockPipe, []},
           {Credo.Check.Readability.SinglePipe, []},
-          {Credo.Check.Readability.Specs, []},
           {Credo.Check.Readability.WithCustomTaggedTuple, []},
           {Credo.Check.Refactor.ABCSize, []},
           {Credo.Check.Refactor.AppendSingleItem, []},
