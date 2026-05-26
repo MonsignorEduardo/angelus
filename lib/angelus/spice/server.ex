@@ -1,9 +1,8 @@
 defmodule Angelus.Spice.Server do
-  @moduledoc false
+  @moduledoc "GenServer that owns the native `spice_worker` Port and serializes SPICE calls."
 
   use GenServer
 
-  alias Angelus.Spice.BodyTargets
   alias Angelus.Spice.KernelSet
   alias Angelus.Spice.WorkerProtocol
 
@@ -12,6 +11,7 @@ defmodule Angelus.Spice.Server do
   # ── GenServer ────────────────────────────────────────────────────────────
 
   @impl true
+  @spec init(keyword()) :: {:ok, map()}
   def init(_opts) do
     base = %{
       port: nil,
@@ -42,6 +42,8 @@ defmodule Angelus.Spice.Server do
   @impl true
   # load_kernels: structural validation runs before port check so whitelist
   # errors are returned even when the worker binary is absent.
+  @spec handle_call(term(), GenServer.from(), map()) ::
+          {:reply, term(), map()} | {:noreply, map()}
   def handle_call({:load_kernels, paths, opts}, from, state) do
     replace? = Keyword.get(opts, :replace, false)
 
@@ -75,35 +77,26 @@ defmodule Angelus.Spice.Server do
     {:noreply, %{new_state | pending: pending}}
   end
 
-  def handle_call({:state, _body, _et, _opts}, _from, %{loaded?: false} = state),
+  def handle_call({:state, _target, _et, _opts}, _from, %{loaded?: false} = state),
     do: {:reply, {:error, :kernels_not_loaded}, state}
 
-  def handle_call({:state, body, et, opts}, from, state) do
-    with {:ok, target} <- BodyTargets.fetch(body),
-         :ok <- validate_native_target(body, target) do
-      {id, new_state} = next_id(state)
+  def handle_call({:state, target, et, opts}, from, state) do
+    {id, new_state} = next_id(state)
 
-      send_to_port(
-        state.port,
-        WorkerProtocol.encode_state(id, target.spice_target, et)
-      )
+    send_to_port(
+      state.port,
+      WorkerProtocol.encode_state(id, target, et)
+    )
 
-      meta = %{
-        body: body,
-        spice_target: target.spice_target,
-        spice_id: target.spice_id,
-        target_kind: target.target_kind,
-        observer: Keyword.get(opts, :observer, :earth),
-        abcorr: "LT+S",
-        frame_base: "ECLIPJ2000",
-        kernel_metadata: state.metadata
-      }
+    meta = %{
+      observer: Keyword.get(opts, :observer, :earth),
+      abcorr: "LT+S",
+      frame_base: "ECLIPJ2000",
+      kernel_metadata: state.metadata
+    }
 
-      pending = Map.put(new_state.pending, id, {:state, from, meta})
-      {:noreply, %{new_state | pending: pending}}
-    else
-      {:error, reason} -> {:reply, {:error, reason}, state}
-    end
+    pending = Map.put(new_state.pending, id, {:state, from, meta})
+    {:noreply, %{new_state | pending: pending}}
   end
 
   def handle_call(:metadata, _from, state), do: {:reply, {:ok, state.metadata}, state}
@@ -115,6 +108,7 @@ defmodule Angelus.Spice.Server do
   # ── Port messages ────────────────────────────────────────────────────────
 
   @impl true
+  @spec handle_info(term(), map()) :: {:noreply, map()}
   def handle_info({port, {:data, data}}, %{port: port} = state) do
     case WorkerProtocol.decode(data) do
       {:error, :decode_error, _raw} ->
@@ -148,23 +142,23 @@ defmodule Angelus.Spice.Server do
 
   # ── Public API ───────────────────────────────────────────────────────────
 
-  @doc false
+  @doc "Starts the named SPICE server process."
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
-  @doc false
+  @doc "Loads validated kernel paths into the native worker."
   @spec load_kernels([String.t()], keyword()) :: {:ok, map()} | {:error, term()}
   def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
 
-  @doc false
+  @doc "Converts a UTC datetime to SPICE ephemeris time through the native worker."
   @spec utc_to_et(DateTime.t()) :: {:ok, float()} | {:error, term()}
   def utc_to_et(datetime), do: call({:utc_to_et, datetime})
 
-  @doc false
-  @spec state(atom(), float(), keyword()) :: {:ok, map()} | {:error, term()}
-  def state(body, et, opts), do: call({:state, body, et, opts})
+  @doc "Returns native SPICE state data for a resolved SPICE target string."
+  @spec state(String.t(), float(), keyword()) :: {:ok, map()} | {:error, term()}
+  def state(target, et, opts), do: call({:state, target, et, opts})
 
-  @doc false
+  @doc "Returns metadata for the currently loaded kernel set, if any."
   @spec metadata() :: {:ok, map() | nil}
   def metadata, do: call(:metadata)
 
@@ -202,11 +196,6 @@ defmodule Angelus.Spice.Server do
   defp send_to_port(port, json) when is_binary(json) do
     Port.command(port, json)
   end
-
-  defp validate_native_target(_body, %{spice_target: t}) when is_binary(t), do: :ok
-
-  defp validate_native_target(body, _target),
-    do: {:error, {:unsupported_native_body, body}}
 
   defp do_load_kernels(paths, metadata, replace?, from, state) do
     if replace? do
@@ -273,10 +262,6 @@ defmodule Angelus.Spice.Server do
 
   defp state_metadata(meta) do
     %{
-      body: meta.body,
-      spice_target: meta.spice_target,
-      spice_id: meta.spice_id,
-      target_kind: meta.target_kind,
       observer: meta.observer,
       abcorr: meta.abcorr,
       frame_base: meta.frame_base,

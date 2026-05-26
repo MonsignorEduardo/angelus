@@ -9,6 +9,7 @@ defmodule Angelus.Spice.Supervisor do
   use Supervisor
 
   @impl true
+  @spec init(keyword()) :: {:ok, Supervisor.sup_flags(), [Supervisor.child_spec()]}
   def init(_opts) do
     children = [
       {Angelus.Spice.Server, []}
@@ -17,7 +18,7 @@ defmodule Angelus.Spice.Supervisor do
     Supervisor.init(children, strategy: :one_for_one)
   end
 
-  @doc false
+  @doc "Starts the SPICE supervisor."
   @spec start_link(keyword()) :: Supervisor.on_start()
   def start_link(opts \\ []), do: Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
 end

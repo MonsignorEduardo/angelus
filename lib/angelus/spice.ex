@@ -1,20 +1,8 @@
 defmodule Angelus.Spice do
   @moduledoc "Public SPICE facade with v0.1 kernel policy validation."
 
-  alias Angelus.Spice.BodyTargets
   alias Angelus.Spice.KernelSet
   alias Angelus.Spice.Server
-
-  @doc """
-  Returns the list of body atoms supported by the v0.1 SPICE engine.
-
-  ## Examples
-
-      iex> :sun in Angelus.Spice.supported_bodies()
-      true
-  """
-  @spec supported_bodies() :: [atom()]
-  def supported_bodies, do: BodyTargets.supported_bodies()
 
   @doc """
   Returns the list of kernel filenames required by the default v0.1 kernel set.
@@ -113,11 +101,10 @@ defmodule Angelus.Spice do
   def utc_to_et(_datetime), do: {:error, :invalid_datetime}
 
   @doc """
-  Returns the SPICE state (position, velocity, ecliptic coordinates) for a body.
+  Returns the SPICE state (position, velocity, ecliptic coordinates) for a target.
 
-  `body` must be an atom recognised by `supported_bodies/0`. `et` is ephemeris
-  time in seconds past J2000 as returned by `utc_to_et/1`. Requires kernels to
-  be loaded.
+  `target` must be a SPICE target name string. `et` is ephemeris time in seconds
+  past J2000 as returned by `utc_to_et/1`. Requires kernels to be loaded.
 
   ## Options
 
@@ -128,20 +115,20 @@ defmodule Angelus.Spice do
 
     * `{:ok, map()}` — state map with position/velocity/ecliptic keys.
     * `{:error, :invalid_et}` when `et` is not a number.
-    * `{:error, {:unsupported_body, atom()}}` for unrecognised or non-atom bodies.
+    * `{:error, :invalid_target}` when `target` is not a binary.
     * `{:error, :kernels_not_loaded}` if no kernels have been loaded.
   """
-  @spec state(atom(), float(), keyword()) :: {:ok, map()} | {:error, term()}
-  def state(body, et, opts \\ [])
+  @spec state(String.t(), float(), keyword()) :: {:ok, map()} | {:error, term()}
+  def state(target, et, opts \\ [])
 
-  def state(body, et, opts) when is_atom(body) and is_number(et) and is_list(opts) do
+  def state(target, et, opts) when is_binary(target) and is_number(et) and is_list(opts) do
     with :ok <- validate_state_options(opts) do
-      Server.state(body, et * 1.0, opts)
+      Server.state(target, et * 1.0, opts)
     end
   end
 
-  def state(body, _et, _opts) when is_atom(body), do: {:error, :invalid_et}
-  def state(body, _et, _opts), do: {:error, {:unsupported_body, body}}
+  def state(target, _et, _opts) when is_binary(target), do: {:error, :invalid_et}
+  def state(_target, _et, _opts), do: {:error, :invalid_target}
 
   @doc """
   Returns the metadata map for the currently loaded kernel set, or `nil` if no
@@ -153,18 +140,6 @@ defmodule Angelus.Spice do
   """
   @spec metadata() :: {:ok, map() | nil}
   def metadata, do: Server.metadata()
-
-  @doc """
-  Returns the SPICE target metadata for the given body atom.
-
-  ## Returns
-
-    * `{:ok, map()}` — target map with `:spice_target`, `:spice_id`, and
-      `:target_kind` keys.
-    * `{:error, {:unsupported_body, atom()}}` when the body is not recognised.
-  """
-  @spec body_target(atom()) :: {:ok, map()} | {:error, {:unsupported_body, atom()}}
-  def body_target(body), do: BodyTargets.fetch(body)
 
   defp load_default_kernels(opts) do
     base_path = Keyword.get(opts, :base_path, Path.join([File.cwd!(), "priv", "kernels"]))

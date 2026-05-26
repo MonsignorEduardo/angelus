@@ -17,6 +17,9 @@
 .DS_Store
 **/.DS_Store
 
+# Local editor settings.
+/.zed/
+
 # Runtime JPL/NAIF kernels are downloaded explicitly and are not source assets.
 /priv/kernels/
 

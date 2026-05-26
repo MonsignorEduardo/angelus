@@ -1,5 +1,5 @@
 defmodule Angelus.Spice.KernelSet do
-  @moduledoc false
+  @moduledoc "Validation and metadata for the v0.1 JPL/NAIF kernel set."
 
   @lsk "latest_leapseconds.tls"
   @tpcs ["pck00011.tpc", "gm_de440.tpc"]
@@ -16,29 +16,29 @@ defmodule Angelus.Spice.KernelSet do
   ]
   @required [@lsk | @tpcs ++ @spks]
 
-  @doc false
+  @doc "Returns the required leap-seconds kernel filename."
   @spec lsk() :: String.t()
   def lsk, do: @lsk
 
-  @doc false
+  @doc "Returns the required text planetary-constants kernel filenames."
   @spec tpcs() :: [String.t()]
   def tpcs, do: @tpcs
 
-  @doc false
+  @doc "Returns the required SPK kernel filenames."
   @spec spks() :: [String.t()]
   def spks, do: @spks
 
-  @doc false
+  @doc "Returns every kernel filename required by the default v0.1 kernel set."
   @spec required_files() :: [String.t()]
   def required_files, do: @required
 
-  @doc false
+  @doc "Builds absolute kernel paths under `base_path` for the default v0.1 kernel set."
   @spec default_paths(String.t()) :: [String.t()]
   def default_paths(base_path) when is_binary(base_path) do
     Enum.map(@required, &Path.join(base_path, &1))
   end
 
-  @doc false
+  @doc "Validates that `paths` contain exactly the supported v0.1 kernel set."
   @spec validate([String.t()]) :: {:ok, map()} | {:error, term()}
   @spec validate(term()) :: {:error, {:invalid_kernel_set, :invalid_paths}}
   def validate(paths) when is_list(paths) do
@@ -55,7 +55,7 @@ defmodule Angelus.Spice.KernelSet do
 
   def validate(_paths), do: {:error, {:invalid_kernel_set, :invalid_paths}}
 
-  @doc false
+  @doc "Builds structured metadata for a validated v0.1 kernel path list."
   @spec metadata([String.t()]) :: map()
   def metadata(paths) do
     by_file = Map.new(paths, fn path -> {Path.basename(path), path} end)

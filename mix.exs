@@ -80,7 +80,7 @@ defmodule Angelus.MixProject do
         "compile --no-deps-check --force",
         "cmd echo",
         "cmd echo Checking Credo ...",
-        "credo -A --ignore todo --mute-exit-status",
+        "credo -A",
         "cmd echo",
         "cmd echo Checking tests ...",
         "cmd sh -c 'MIX_ENV=test mix test'",

@@ -1,23 +1,24 @@
 defmodule Angelus.Ephemeris do
   @moduledoc "Public v0.1 API for geocentric ephemeris positions."
 
+  alias Angelus.Ephemeris.BodyCatalog
   alias Angelus.Ephemeris.BodyPosition
 
   @range_from ~D[1900-01-01]
   @range_to ~D[2100-01-24]
-  @default_adapter Angelus.Adapters.SpiceNative
+  @default_adapter Angelus.Ephemeris.Adapters.Spice
 
   @doc """
   Returns the geocentric position of a single celestial body at a UTC datetime.
 
-  `body` must be one of the atoms supported by `Angelus.Spice.supported_bodies/0`.
+  `body` must be one of the atoms supported by the v0.1 ephemeris body catalog.
   `datetime` must be a `%DateTime{}` in the UTC timezone.
 
   ## Options
 
     * `:adapter` — an alternative ephemeris adapter module implementing the
       `Angelus.Ephemeris.Adapter` behaviour. Defaults to
-      `Angelus.Adapters.SpiceNative`.
+      `Angelus.Ephemeris.Adapters.Spice`.
 
   ## Returns
 
@@ -49,15 +50,15 @@ defmodule Angelus.Ephemeris do
   @doc """
   Returns geocentric positions for a list of celestial bodies at a UTC datetime.
 
-  All entries in `bodies` must be atoms supported by
-  `Angelus.Spice.supported_bodies/0`. The list must be non-empty and contain no
-  duplicates. `datetime` must be a `%DateTime{}` in the UTC timezone.
+  All entries in `bodies` must be atoms supported by the v0.1 ephemeris body
+  catalog. The list must be non-empty and contain no duplicates. `datetime`
+  must be a `%DateTime{}` in the UTC timezone.
 
   ## Options
 
     * `:adapter` — an alternative ephemeris adapter module implementing the
       `Angelus.Ephemeris.Adapter` behaviour. Defaults to
-      `Angelus.Adapters.SpiceNative`.
+      `Angelus.Ephemeris.Adapters.Spice`.
 
   ## Returns
 
@@ -198,7 +199,7 @@ defmodule Angelus.Ephemeris do
 
   defp validate_supported_bodies(bodies) do
     case Enum.find(bodies, fn body ->
-           match?({:error, _reason}, Angelus.Spice.body_target(body))
+           match?({:error, _reason}, BodyCatalog.fetch(body))
          end) do
       nil -> :ok
       body -> {:error, {:unsupported_body, body}}
