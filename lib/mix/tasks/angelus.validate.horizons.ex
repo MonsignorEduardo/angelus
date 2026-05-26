@@ -3,7 +3,6 @@ defmodule Mix.Tasks.Angelus.Validate.Horizons do
 
   use Mix.Task
 
-  @shortdoc "Validates JPL Horizons fixtures"
   @fixture Path.join(["test", "fixtures", "horizons", "de442_positions.json"])
 
   @impl true
@@ -39,6 +38,7 @@ defmodule Mix.Tasks.Angelus.Validate.Horizons do
     end
   end
 
+  @spec write!() :: no_return()
   defp write! do
     Mix.raise(
       "--write requires live JPL Horizons query support, which is not implemented in this first v0.1 scaffold"
@@ -88,4 +88,6 @@ defmodule Mix.Tasks.Angelus.Validate.Horizons do
       _case -> {:error, :invalid_case_shape}
     end
   end
+
+  @shortdoc "Validates JPL Horizons fixtures"
 end

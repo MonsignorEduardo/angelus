@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define RAD_TO_DEG (180.0 / 3.14159265358979323846)
+
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 
 static void fill_error(char *buf, int size, const char *msg) {
@@ -98,10 +100,10 @@ int ops_state(const char *target, double et, const char *observer,
   }
 
   /* lon_rad in (-pi, pi]; convert to degrees and normalize to [0, 360) */
-  double lon_deg = lon_rad * (180.0 / M_PI);
+  double lon_deg = lon_rad * RAD_TO_DEG;
   if (lon_deg < 0.0) lon_deg += 360.0;
 
-  double lat_deg = lat_rad * (180.0 / M_PI);
+  double lat_deg = lat_rad * RAD_TO_DEG;
 
   out->state_km[0] = state[0];
   out->state_km[1] = state[1];

@@ -7,6 +7,35 @@ defmodule Angelus.Ephemeris do
   @range_to ~D[2100-01-24]
   @default_adapter Angelus.Adapters.SpiceNative
 
+  @doc """
+  Returns the geocentric position of a single celestial body at a UTC datetime.
+
+  `body` must be one of the atoms supported by `Angelus.Spice.supported_bodies/0`.
+  `datetime` must be a `%DateTime{}` in the UTC timezone.
+
+  ## Options
+
+    * `:adapter` — an alternative ephemeris adapter module implementing the
+      `Angelus.Ephemeris.Adapter` behaviour. Defaults to
+      `Angelus.Adapters.SpiceNative`.
+
+  ## Returns
+
+    * `{:ok, %Angelus.Ephemeris.BodyPosition{}}` on success.
+    * `{:error, :invalid_body}` when `body` is not an atom.
+    * `{:error, :invalid_datetime}` / `{:error, :datetime_must_be_utc}` for bad datetimes.
+    * `{:error, {:unsupported_body, body}}` for unrecognised bodies.
+    * `{:error, {:datetime_out_of_range, %{from: Date.t(), to: Date.t()}}}` outside the
+      supported range.
+
+  ## Examples
+
+      iex> {:ok, pos} = Angelus.Ephemeris.position(:sun, ~U[2000-01-01 12:00:00Z])
+      iex> pos.body
+      :sun
+  """
+  @spec position(atom(), DateTime.t(), keyword()) ::
+          {:ok, BodyPosition.t()} | {:error, term()}
   def position(body, datetime, opts \\ [])
 
   def position(body, datetime, opts) when is_atom(body) do
@@ -17,6 +46,40 @@ defmodule Angelus.Ephemeris do
 
   def position(_body, _datetime, _opts), do: {:error, :invalid_body}
 
+  @doc """
+  Returns geocentric positions for a list of celestial bodies at a UTC datetime.
+
+  All entries in `bodies` must be atoms supported by
+  `Angelus.Spice.supported_bodies/0`. The list must be non-empty and contain no
+  duplicates. `datetime` must be a `%DateTime{}` in the UTC timezone.
+
+  ## Options
+
+    * `:adapter` — an alternative ephemeris adapter module implementing the
+      `Angelus.Ephemeris.Adapter` behaviour. Defaults to
+      `Angelus.Adapters.SpiceNative`.
+
+  ## Returns
+
+    * `{:ok, %{atom() => %Angelus.Ephemeris.BodyPosition{}}}` — a map keyed by
+      body atom.
+    * `{:error, :empty_body_list}` when `bodies` is `[]`.
+    * `{:error, :invalid_body_list}` when `bodies` is not a list of atoms.
+    * `{:error, {:duplicate_body, atom()}}` when the same body appears more than once.
+    * `{:error, {:unsupported_body, atom()}}` for unrecognised bodies.
+    * `{:error, :invalid_datetime}` / `{:error, :datetime_must_be_utc}` for bad datetimes.
+    * `{:error, {:datetime_out_of_range, %{from: Date.t(), to: Date.t()}}}` outside the
+      supported range.
+    * `{:error, {:unsupported_option, term()}}` for unknown options.
+
+  ## Examples
+
+      iex> {:ok, positions} = Angelus.Ephemeris.positions([:sun, :moon], ~U[2000-01-01 12:00:00Z])
+      iex> Map.keys(positions)
+      [:sun, :moon]
+  """
+  @spec positions([atom(), ...], DateTime.t(), keyword()) ::
+          {:ok, %{atom() => BodyPosition.t()}} | {:error, term()}
   def positions(bodies, datetime, opts \\ []) do
     with :ok <- validate_options(opts),
          {:ok, adapter} <- fetch_adapter(opts),
@@ -26,19 +89,23 @@ defmodule Angelus.Ephemeris do
          :ok <- validate_supported_bodies(bodies),
          :ok <- validate_public_range(datetime),
          {:ok, et} <- adapter.utc_to_et(datetime) do
-      bodies
-      |> Enum.reduce_while({:ok, %{}}, fn body, {:ok, acc} ->
-        case build_position(body, et, adapter) do
-          {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
-          {:error, reason} -> {:halt, {:error, reason}}
-        end
-      end)
+      build_positions(bodies, et, adapter)
     end
   end
 
+  defp build_positions(bodies, et, adapter) do
+    Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
+      case build_position(body, et, adapter) do
+        {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
   defp build_position(body, et, adapter) do
-    with {:ok, state} <- adapter.state(body, et),
-         longitude = Angelus.Angle.normalize(state.ecliptic_longitude) do
+    with {:ok, state} <- adapter.state(body, et) do
+      longitude = Angelus.Angle.normalize(state.ecliptic_longitude)
+
       {:ok,
        %BodyPosition{
          body: body,

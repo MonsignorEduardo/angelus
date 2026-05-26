@@ -3,19 +3,11 @@ defmodule Angelus.Spice.Server do
 
   use GenServer
 
+  alias Angelus.Spice.BodyTargets
   alias Angelus.Spice.KernelSet
   alias Angelus.Spice.WorkerProtocol
 
   @worker_bin "spice_worker"
-
-  # ── Public API ───────────────────────────────────────────────────────────
-
-  def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
-
-  def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
-  def utc_to_et(datetime), do: call({:utc_to_et, datetime})
-  def state(body, et, opts), do: call({:state, body, et, opts})
-  def metadata, do: call(:metadata)
 
   # ── GenServer ────────────────────────────────────────────────────────────
 
@@ -87,7 +79,7 @@ defmodule Angelus.Spice.Server do
     do: {:reply, {:error, :kernels_not_loaded}, state}
 
   def handle_call({:state, body, et, opts}, from, state) do
-    with {:ok, target} <- Angelus.Spice.BodyTargets.fetch(body),
+    with {:ok, target} <- BodyTargets.fetch(body),
          :ok <- validate_native_target(body, target) do
       {id, new_state} = next_id(state)
 
@@ -153,6 +145,28 @@ defmodule Angelus.Spice.Server do
   end
 
   def handle_info(_msg, state), do: {:noreply, state}
+
+  # ── Public API ───────────────────────────────────────────────────────────
+
+  @doc false
+  @spec start_link(keyword()) :: GenServer.on_start()
+  def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+
+  @doc false
+  @spec load_kernels([String.t()], keyword()) :: {:ok, map()} | {:error, term()}
+  def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
+
+  @doc false
+  @spec utc_to_et(DateTime.t()) :: {:ok, float()} | {:error, term()}
+  def utc_to_et(datetime), do: call({:utc_to_et, datetime})
+
+  @doc false
+  @spec state(atom(), float(), keyword()) :: {:ok, map()} | {:error, term()}
+  def state(body, et, opts), do: call({:state, body, et, opts})
+
+  @doc false
+  @spec metadata() :: {:ok, map() | nil}
+  def metadata, do: call(:metadata)
 
   # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -242,34 +256,32 @@ defmodule Angelus.Spice.Server do
         {:noreply, %{state | pending: remaining}}
 
       {{:state, from, meta}, remaining} ->
-        reply =
-          case result do
-            {:ok, raw} ->
-              case WorkerProtocol.coerce_state(raw) do
-                {:ok, coerced} ->
-                  {:ok,
-                   Map.merge(coerced, %{
-                     body: meta.body,
-                     spice_target: meta.spice_target,
-                     spice_id: meta.spice_id,
-                     target_kind: meta.target_kind,
-                     observer: meta.observer,
-                     abcorr: meta.abcorr,
-                     frame_base: meta.frame_base,
-                     kernel_metadata: meta.kernel_metadata
-                   })}
-
-                {:error, _} ->
-                  {:error, :invalid_state_result}
-              end
-
-            {:error, _} = err ->
-              err
-          end
-
+        reply = handle_state_result(result, meta)
         GenServer.reply(from, reply)
         {:noreply, %{state | pending: remaining}}
     end
+  end
+
+  defp handle_state_result({:ok, raw}, meta) do
+    case WorkerProtocol.coerce_state(raw) do
+      {:ok, coerced} -> {:ok, Map.merge(coerced, state_metadata(meta))}
+      {:error, _} -> {:error, :invalid_state_result}
+    end
+  end
+
+  defp handle_state_result({:error, _} = err, _meta), do: err
+
+  defp state_metadata(meta) do
+    %{
+      body: meta.body,
+      spice_target: meta.spice_target,
+      spice_id: meta.spice_id,
+      target_kind: meta.target_kind,
+      observer: meta.observer,
+      abcorr: meta.abcorr,
+      frame_base: meta.frame_base,
+      kernel_metadata: meta.kernel_metadata
+    }
   end
 
   defp reply_to_waiter({:load_kernels, from, _meta}, reply), do: GenServer.reply(from, reply)

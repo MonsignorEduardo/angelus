@@ -23,6 +23,7 @@ defmodule Angelus.Spice.WorkerProtocolTest do
 
   test "encode_utc_to_et includes utc field" do
     json = WorkerProtocol.encode_utc_to_et(4, "1990-05-24T06:30:00Z")
+
     assert {:ok, %{"id" => 4, "op" => "utc_to_et", "utc" => "1990-05-24T06:30:00Z"}} =
              Jason.decode(json)
   end

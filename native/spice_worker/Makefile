@@ -29,7 +29,7 @@
 
 # ── Compiler ──────────────────────────────────────────────────────────────
 CC     ?= cc
-CFLAGS ?= -O2 -Wall -Wextra -std=c99
+CFLAGS ?= -O2 -Wall -Wextra -std=c11
 
 # ── Paths ─────────────────────────────────────────────────────────────────
 WORKER_DIR   := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))

@@ -16,15 +16,31 @@ defmodule Angelus.Spice.KernelSet do
   ]
   @required [@lsk | @tpcs ++ @spks]
 
+  @doc false
+  @spec lsk() :: String.t()
   def lsk, do: @lsk
+
+  @doc false
+  @spec tpcs() :: [String.t()]
   def tpcs, do: @tpcs
+
+  @doc false
+  @spec spks() :: [String.t()]
   def spks, do: @spks
+
+  @doc false
+  @spec required_files() :: [String.t()]
   def required_files, do: @required
 
+  @doc false
+  @spec default_paths(String.t()) :: [String.t()]
   def default_paths(base_path) when is_binary(base_path) do
     Enum.map(@required, &Path.join(base_path, &1))
   end
 
+  @doc false
+  @spec validate([String.t()]) :: {:ok, map()} | {:error, term()}
+  @spec validate(term()) :: {:error, {:invalid_kernel_set, :invalid_paths}}
   def validate(paths) when is_list(paths) do
     with :ok <- validate_strings(paths),
          basenames = Enum.map(paths, &Path.basename/1),
@@ -39,6 +55,8 @@ defmodule Angelus.Spice.KernelSet do
 
   def validate(_paths), do: {:error, {:invalid_kernel_set, :invalid_paths}}
 
+  @doc false
+  @spec metadata([String.t()]) :: map()
   def metadata(paths) do
     by_file = Map.new(paths, fn path -> {Path.basename(path), path} end)
 

@@ -14,7 +14,7 @@ defmodule Angelus.MixProject do
       aliases: aliases(),
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      dialyzer: [plt_add_apps: [:mix]],
+      dialyzer: [plt_add_apps: [:mix], plt_local_path: "priv/plts"],
 
       # elixir_make / cc_precompiler — precompiled spice_worker binary
       make_precompiler: {:port, CCPrecompiler},
@@ -46,7 +46,7 @@ defmodule Angelus.MixProject do
       {:elixir_make, "~> 0.9", runtime: false},
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 

@@ -60,12 +60,14 @@ defmodule Angelus.Spice.KernelSetTest do
 
   test "validate rejects missing pck00011.tpc" do
     paths = Enum.reject(fake_paths(), &String.contains?(&1, "pck00011"))
+
     assert {:error, {:invalid_kernel_set, {:missing_tpc, "pck00011.tpc"}}} =
              KernelSet.validate(paths)
   end
 
   test "validate rejects missing gm_de440.tpc" do
     paths = Enum.reject(fake_paths(), &String.contains?(&1, "gm_de440"))
+
     assert {:error, {:invalid_kernel_set, {:missing_tpc, "gm_de440.tpc"}}} =
              KernelSet.validate(paths)
   end
@@ -74,12 +76,14 @@ defmodule Angelus.Spice.KernelSetTest do
 
   test "validate rejects missing de442.bsp" do
     paths = Enum.reject(fake_paths(), &String.contains?(&1, "de442.bsp"))
+
     assert {:error, {:invalid_kernel_set, {:missing_bsp, "de442.bsp"}}} =
              KernelSet.validate(paths)
   end
 
   test "validate rejects missing complementary SPK" do
     paths = Enum.reject(fake_paths(), &String.contains?(&1, "jup349"))
+
     assert {:error, {:invalid_kernel_set, {:missing_bsp, "jup349.bsp"}}} =
              KernelSet.validate(paths)
   end

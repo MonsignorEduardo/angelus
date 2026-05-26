@@ -47,3 +47,4 @@ native/spice_worker/build/
 
 # Compiled spice_worker binary (managed by elixir_make)
 /priv/spice_worker
+/priv/plts/

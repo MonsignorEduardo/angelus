@@ -66,8 +66,23 @@ defmodule Angelus.Spice.BodyTargetsTest do
 
   test "supported_bodies returns all v0.1 bodies" do
     bodies = BodyTargets.supported_bodies()
-    expected = [:sun, :moon, :mercury, :venus, :mars, :jupiter, :saturn, :uranus, :neptune, :pluto,
-                :true_node, :mean_node, :chiron, :lilith]
+
+    expected = [
+      :sun,
+      :moon,
+      :mercury,
+      :venus,
+      :mars,
+      :jupiter,
+      :saturn,
+      :uranus,
+      :neptune,
+      :pluto,
+      :true_node,
+      :mean_node,
+      :chiron,
+      :lilith
+    ]
 
     Enum.each(expected, fn b -> assert b in bodies, "missing #{b}" end)
   end

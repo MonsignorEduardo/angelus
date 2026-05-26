@@ -6,15 +6,84 @@ on:
       - 'v*'
 
 env:
-  MIX_ENV: prod
+  MIX_ENV: test
   ELIXIR_VERSION: "1.19"
   OTP_VERSION: "27"
 
 jobs:
+  # ── Quality gate (must pass before any precompile job) ───────────────────
+  quality:
+    name: Quality gate
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential curl jq
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ hashFiles('mix.lock') }}
+          restore-keys: deps-
+
+      - name: Cache _build
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
+          restore-keys: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
+
+      - name: Cache native/libs (CSPICE + jsmn)
+        uses: actions/cache@v4
+        with:
+          path: native/libs
+          key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+
+      - name: Cache PLT (Dialyzer)
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: plts-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
+          restore-keys: plts-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
+
+      - name: Get deps
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Credo
+        run: mix credo --strict --ignore todo
+
+      - name: Dialyzer
+        run: mix dialyzer --format github
+
+      - name: Unit tests
+        run: mix test
+
+      - name: Integration tests (spice_integration)
+        run: mix test --include spice_integration
+
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
-    runs-on: blacksmith-2vcpu-ubuntu-2204-arm  # Blacksmith M1-equivalent ARM runner
+    needs: quality
+    runs-on: macos-14
+    env:
+      MIX_ENV: prod
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +117,10 @@ jobs:
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
-    runs-on: blacksmith-2vcpu-ubuntu-2204
+    needs: quality
+    runs-on: ubuntu-22.04
+    env:
+      MIX_ENV: prod
 
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +160,9 @@ jobs:
   checksum:
     name: Generate checksum
     needs: [precompile-macos, precompile-linux]
-    runs-on: blacksmith-2vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
+    env:
+      MIX_ENV: prod
 
     steps:
       - uses: actions/checkout@v4
@@ -110,3 +184,35 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: checksum-angelus.exs
+
+  # ── Publish to Hex.pm ────────────────────────────────────────────────────
+  publish:
+    name: Publish to Hex.pm
+    needs: checksum
+    runs-on: ubuntu-22.04
+    env:
+      MIX_ENV: prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Get deps
+        run: mix deps.get
+
+      - name: Download checksum file
+        run: |
+          gh release download ${{ github.ref_name }} \
+            --pattern "checksum-angelus.exs" \
+            --output checksum-angelus.exs
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publish to Hex.pm
+        run: mix hex.publish --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
