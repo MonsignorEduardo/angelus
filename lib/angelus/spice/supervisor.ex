@@ -9,7 +9,7 @@ defmodule Angelus.Spice.Supervisor do
   use Supervisor
 
   @impl true
-  @spec init(keyword()) :: {:ok, Supervisor.sup_flags(), [Supervisor.child_spec()]}
+  @spec init(keyword()) :: {:ok, {Supervisor.sup_flags(), [Supervisor.child_spec()]}}
   def init(_opts) do
     children = [
       {Angelus.Spice.Server, []}
