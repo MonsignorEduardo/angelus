@@ -46,7 +46,7 @@ defmodule Angelus.MixProject do
       {:elixir_make, "~> 0.9", runtime: false},
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 
