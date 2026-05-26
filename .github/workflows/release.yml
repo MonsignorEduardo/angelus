@@ -14,7 +14,7 @@ jobs:
   # ── Quality gate (must pass before any precompile job) ───────────────────
   quality:
     name: Quality gate
-    runs-on: blacksmith-2vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
     needs: quality
-    runs-on: blacksmith-2vcpu-ubuntu-2204-arm  # Blacksmith M1-equivalent ARM runner
+    runs-on: macos-14
     env:
       MIX_ENV: prod
 
@@ -118,7 +118,7 @@ jobs:
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
     needs: quality
-    runs-on: blacksmith-2vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     env:
       MIX_ENV: prod
 
@@ -160,7 +160,7 @@ jobs:
   checksum:
     name: Generate checksum
     needs: [precompile-macos, precompile-linux]
-    runs-on: blacksmith-2vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     env:
       MIX_ENV: prod
 
@@ -189,7 +189,7 @@ jobs:
   publish:
     name: Publish to Hex.pm
     needs: checksum
-    runs-on: blacksmith-2vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     env:
       MIX_ENV: prod
 
