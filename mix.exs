@@ -5,10 +5,6 @@ defmodule Angelus.MixProject do
   @version "0.0.1"
   @source_url "https://github.com/MonsignorEduardo/angelus"
   @priv_paths ["spice_worker"]
-  @cc_precompiler_compilers %{
-    {:unix, :darwin} => %{include_default_ones: true},
-    {:unix, :linux} => %{include_default_ones: true}
-  }
 
   def project do
     [
@@ -59,7 +55,13 @@ defmodule Angelus.MixProject do
   defp cc_precompiler do
     [
       only_listed_targets: true,
-      compilers: @cc_precompiler_compilers
+      compilers: %{
+        {:unix, :darwin} => %{
+          "aarch64-apple-darwin" =>
+            {"gcc", "g++", "<%= cc %> -arch arm64", "<%= cxx %> -arch arm64"}
+        },
+        {:unix, :linux} => %{"x86_64-linux-gnu" => "x86_64-linux-gnu-"}
+      }
     ]
   end
 

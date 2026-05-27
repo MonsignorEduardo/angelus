@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# fetch-libs.sh — download CSPICE and jsmn as specified in native_sources.lock
+# fetch-libs.sh - download CSPICE and jsmn as specified in native_sources.lock
 #
 # Usage (from native/spice_worker/):
 #   ./fetch-libs.sh cspice <dest_dir>
@@ -24,32 +24,12 @@ sha256() {
   fi
 }
 
-build_cspice_from_source() {
-  SRC_ROOT="$1"
-  DEST="$2"
-  BUILD_DIR="/tmp/cspice_build"
-  CC_BIN="${CC:-cc}"
-
-  rm -rf "$BUILD_DIR"
-  mkdir -p "$BUILD_DIR" "$DEST/lib"
-
-  echo "Building CSPICE from source with $CC_BIN ..."
-  for SRC in "$SRC_ROOT"/src/cspice/*.c; do
-    OBJ="$BUILD_DIR/$(basename "$SRC" .c).o"
-    "$CC_BIN" -O2 -I"$SRC_ROOT/include" -c "$SRC" -o "$OBJ"
-  done
-
-  ar rcs "$DEST/lib/cspice.a" "$BUILD_DIR"/*.o
-  rm -rf "$BUILD_DIR"
-}
-
-# ── fetch cspice ──────────────────────────────────────────────────────────
+# fetch cspice
 fetch_cspice() {
   DEST="$1"
-  BUILD_FROM_SOURCE=0
 
   if [ -d "$DEST/include" ] && [ -f "$DEST/lib/cspice.a" ]; then
-    echo "CSPICE already present at $DEST — skipping."
+    echo "CSPICE already present at $DEST - skipping."
     return
   fi
 
@@ -63,8 +43,7 @@ fetch_cspice() {
     case "$(uname -s)/$(uname -m)" in
       Darwin/arm64) TARGET="aarch64-apple-darwin" ;;
       Linux/x86_64) TARGET="x86_64-linux-gnu" ;;
-      Linux/aarch64) TARGET="aarch64-linux-gnu" ;;
-      *) die "unsupported platform $(uname -s)/$(uname -m) — supported: aarch64-apple-darwin, x86_64-linux-gnu, aarch64-linux-gnu" ;;
+      *) die "unsupported platform $(uname -s)/$(uname -m) - supported: aarch64-apple-darwin, x86_64-linux-gnu" ;;
     esac
   fi
 
@@ -77,13 +56,8 @@ fetch_cspice() {
       URL="$(      jq -r '.cspice.url_linux_x86_64'   "$LOCK")"
       EXPECTED="$( jq -r '.cspice.sha256_linux_x86_64' "$LOCK")"
       ;;
-    aarch64-linux-gnu)
-      URL="$(      jq -r '.cspice.url_source'   "$LOCK")"
-      EXPECTED="$( jq -r '.cspice.sha256_source' "$LOCK")"
-      BUILD_FROM_SOURCE=1
-      ;;
     *)
-      die "unsupported target $TARGET — supported: aarch64-apple-darwin, x86_64-linux-gnu, aarch64-linux-gnu"
+      die "unsupported target $TARGET - supported: aarch64-apple-darwin, x86_64-linux-gnu"
       ;;
   esac
 
@@ -103,24 +77,19 @@ fetch_cspice() {
   mkdir -p /tmp/cspice_extract "$DEST"
   tar -xf /tmp/cspice.tar.Z -C /tmp/cspice_extract
   cp -r /tmp/cspice_extract/cspice/include "$DEST/include"
-
-  if [ "$BUILD_FROM_SOURCE" -eq 1 ]; then
-    build_cspice_from_source /tmp/cspice_extract/cspice "$DEST"
-  else
-    cp -r /tmp/cspice_extract/cspice/lib "$DEST/lib"
-  fi
+  cp -r /tmp/cspice_extract/cspice/lib "$DEST/lib"
 
   rm -rf /tmp/cspice_extract /tmp/cspice.tar.Z
   echo "CSPICE installed to $DEST."
 }
 
-# ── fetch jsmn ────────────────────────────────────────────────────────────
+# fetch jsmn
 fetch_jsmn() {
   DEST="$1"
   OUT="$DEST/jsmn.h"
 
   if [ -f "$OUT" ]; then
-    echo "jsmn.h already present — skipping."
+    echo "jsmn.h already present - skipping."
     return
   fi
 
@@ -131,7 +100,7 @@ fetch_jsmn() {
   echo "jsmn.h installed to $OUT."
 }
 
-# ── dispatch ──────────────────────────────────────────────────────────────
+# dispatch
 CMD="${1:-}"
 DEST="${2:-}"
 

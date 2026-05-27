@@ -10,6 +10,8 @@ on:
         type: string
 
 env:
+  LC_ALL: C
+  LANG: C
   ELIXIR_VERSION: "1.19"
   OTP_VERSION: "27"
   MIX_ENV: test
@@ -19,7 +21,7 @@ env:
 jobs:
   ci:
     name: CI
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v6
@@ -54,7 +56,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: native/libs
-          key: native-libs-aarch64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+          key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
 
       - name: Cache PLT (Dialyzer)
         uses: actions/cache@v5
