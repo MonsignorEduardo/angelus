@@ -73,7 +73,7 @@ end
 - For supported platforms, no local C compiler or CSPICE installation is required when installing from Hex.
 - Local source builds require a C compiler available as `cc`, plus `curl`, `jq`, `tar`, and either `sha256sum` or `shasum`.
 
-Precompiled native workers are produced for macOS Apple Silicon, Linux glibc x86_64, and Linux glibc ARM64.
+Precompiled CSPICE-enabled native workers are produced only for macOS Apple Silicon and Linux glibc x86_64.
 
 ## Quick Start
 
@@ -84,7 +84,7 @@ mix deps.get
 mix compile
 ```
 
-When installed from Hex on a supported platform, compilation downloads the matching precompiled `spice_worker`. Local development in this repository can force a source build with `ANGELUS_FORCE_BUILD=1` or `just build`.
+When installed from Hex on one of those supported platforms, compilation downloads the matching precompiled `spice_worker`. Local development in this repository can force a source build with `ANGELUS_FORCE_BUILD=1` or `just build`.
 
 Download the default v0.1 kernel set:
 

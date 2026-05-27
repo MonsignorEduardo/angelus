@@ -29,7 +29,10 @@ defmodule Angelus.MixProject do
       make_force_build: System.get_env("ANGELUS_FORCE_BUILD") == "1",
       dialyzer: dialyzer(),
       description: description(),
-      package: package()
+      package: package(),
+      name: "Angelus",
+      source_url: @source_url,
+      docs: docs()
     ]
   end
 
@@ -82,7 +85,25 @@ defmodule Angelus.MixProject do
         "checksum.exs",
         "mix.exs",
         "README.md",
+        "BUILDING.md",
+        "THIRD_PARTY_NOTICES.md",
         "LICENSE"
+      ]
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      source_ref: "v#{@version}",
+      extras: [
+        "README.md",
+        "THIRD_PARTY_NOTICES.md",
+        "LICENSE"
+      ],
+      groups_for_extras: [
+        Guides: ["README.md"],
+        Legal: ["THIRD_PARTY_NOTICES.md", "LICENSE"]
       ]
     ]
   end
