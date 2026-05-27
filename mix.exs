@@ -29,6 +29,7 @@ defmodule Angelus.MixProject do
       make_clean: ["clean"],
       make_force_build: System.get_env("ANGELUS_FORCE_BUILD") == "1",
       dialyzer: dialyzer(),
+      description: description(),
       package: package()
     ]
   end
@@ -70,7 +71,10 @@ defmodule Angelus.MixProject do
     [
       files: [
         "lib",
-        "native/spice_worker",
+        "native/spice_worker/Makefile",
+        "native/spice_worker/fetch-libs.sh",
+        "native/spice_worker/patches",
+        "native/spice_worker/src",
         "priv/.gitkeep",
         "checksum.exs",
         "mix.exs",
@@ -80,6 +84,10 @@ defmodule Angelus.MixProject do
       licenses: ["MIT"],
       links: %{"GitHub" => @github_url}
     ]
+  end
+
+  defp description do
+    "Elixir ephemeris library backed by NAIF CSPICE and JPL kernels."
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
