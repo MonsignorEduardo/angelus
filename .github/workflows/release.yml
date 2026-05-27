@@ -30,27 +30,27 @@ jobs:
           sudo apt-get install -y build-essential curl jq
 
       - name: Cache deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: deps
           key: deps-${{ hashFiles('mix.lock') }}
           restore-keys: deps-
 
       - name: Cache _build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: _build
           key: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
 
       - name: Cache native/libs (CSPICE + jsmn)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: native/libs
           key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
 
       - name: Cache PLT (Dialyzer)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: priv/plts
           key: plts-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
@@ -94,7 +94,7 @@ jobs:
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
       - name: Cache native/libs (CSPICE + jsmn)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: native/libs
           key: native-libs-aarch64-apple-darwin-${{ hashFiles('native/native_sources.lock') }}
@@ -136,7 +136,7 @@ jobs:
           sudo apt-get install -y build-essential curl jq
 
       - name: Cache native/libs (CSPICE + jsmn)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: native/libs
           key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
