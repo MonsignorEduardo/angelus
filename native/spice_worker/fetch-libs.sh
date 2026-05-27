@@ -24,11 +24,31 @@ sha256() {
   fi
 }
 
+build_cspice_from_source() {
+  SRC_ROOT="$1"
+  DEST="$2"
+  BUILD_DIR="/tmp/cspice_build"
+  CC_BIN="${CC:-cc}"
+
+  rm -rf "$BUILD_DIR"
+  mkdir -p "$BUILD_DIR" "$DEST/lib"
+
+  echo "Building CSPICE from source with $CC_BIN ..."
+  for SRC in "$SRC_ROOT"/src/cspice/*.c; do
+    OBJ="$BUILD_DIR/$(basename "$SRC" .c).o"
+    "$CC_BIN" -O2 -I"$SRC_ROOT/include" -c "$SRC" -o "$OBJ"
+  done
+
+  ar rcs "$DEST/lib/cspice.a" "$BUILD_DIR"/*.o
+  rm -rf "$BUILD_DIR"
+}
+
 # ── fetch cspice ──────────────────────────────────────────────────────────
 fetch_cspice() {
   DEST="$1"
+  BUILD_FROM_SOURCE=0
 
-  if [ -d "$DEST/include" ] && [ -d "$DEST/lib" ]; then
+  if [ -d "$DEST/include" ] && [ -f "$DEST/lib/cspice.a" ]; then
     echo "CSPICE already present at $DEST — skipping."
     return
   fi
@@ -45,8 +65,13 @@ fetch_cspice() {
       URL="$(      jq -r '.cspice.url_linux_x86_64'   "$LOCK")"
       EXPECTED="$( jq -r '.cspice.sha256_linux_x86_64' "$LOCK")"
       ;;
+    Linux/aarch64)
+      URL="$(      jq -r '.cspice.url_source'   "$LOCK")"
+      EXPECTED="$( jq -r '.cspice.sha256_source' "$LOCK")"
+      BUILD_FROM_SOURCE=1
+      ;;
     *)
-      die "unsupported platform $OS/$ARCH — supported: Darwin/arm64, Linux/x86_64"
+      die "unsupported platform $OS/$ARCH — supported: Darwin/arm64, Linux/x86_64, Linux/aarch64"
       ;;
   esac
 
@@ -66,7 +91,13 @@ fetch_cspice() {
   mkdir -p /tmp/cspice_extract "$DEST"
   tar -xf /tmp/cspice.tar.Z -C /tmp/cspice_extract
   cp -r /tmp/cspice_extract/cspice/include "$DEST/include"
-  cp -r /tmp/cspice_extract/cspice/lib     "$DEST/lib"
+
+  if [ "$BUILD_FROM_SOURCE" -eq 1 ]; then
+    build_cspice_from_source /tmp/cspice_extract/cspice "$DEST"
+  else
+    cp -r /tmp/cspice_extract/cspice/lib "$DEST/lib"
+  fi
+
   rm -rf /tmp/cspice_extract /tmp/cspice.tar.Z
   echo "CSPICE installed to $DEST."
 }
