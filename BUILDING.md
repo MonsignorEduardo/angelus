@@ -18,7 +18,7 @@ Add `angelus` to `mix.exs`:
 
 When `mix deps.compile` runs, `elixir_make` will:
 
-1. Detect your platform (`aarch64-apple-darwin` or `x86_64-linux-gnu`)
+1. Detect your platform (`aarch64-apple-darwin`, `x86_64-linux-gnu`, or `aarch64-linux-gnu`)
 2. Download the precompiled `spice_worker` binary from GitHub Releases
 3. Verify its SHA-256 checksum against `checksum-angelus.exs`
 4. Install it to `priv/spice_worker`
@@ -31,6 +31,7 @@ No C compiler or CSPICE installation is needed.
 |-----------------------|--------------------------|
 | macOS (Apple Silicon) | `aarch64-apple-darwin`   |
 | Linux glibc x86_64    | `x86_64-linux-gnu`       |
+| Linux glibc ARM64     | `aarch64-linux-gnu`      |
 
 If your platform is not listed, see [Local dev build](#local-dev-build).
 
@@ -50,7 +51,7 @@ If your platform is not listed, see [Local dev build](#local-dev-build).
 ```bash
 mix deps.get
 just build             # downloads CSPICE + jsmn → native/libs/, compiles spice_worker
-just test              # 54 unit tests (no CSPICE required at test time)
+just test              # unit tests (no CSPICE required at test time)
 just test-integration  # build + mix test --include spice_integration
 ```
 
@@ -70,7 +71,7 @@ mix compile
 ```bash
 mix deps.get
 mix compile            # stub worker — SPICE ops return an error
-mix test               # 54 tests, all pass
+mix test               # unit tests, all pass
 ```
 
 The stub build is the default when `SKIP_CSPICE=1` is passed to `make`.
@@ -101,16 +102,29 @@ mix test --include spice_integration
 
 ### How it works
 
-The GitHub Actions workflow (`.github/workflows/release.yml`) triggers on `v*` tags:
+The pull request CI workflow (`.github/workflows/ci.yml`) runs on
+`ubuntu-24.04-arm` with `SKIP_CSPICE=1`, so it builds the stub worker and does not
+download or build CSPICE. It checks formatting first, compiles second, then runs
+Credo, Dialyzer, and tests in parallel.
+
+The release workflow (`.github/workflows/release.yml`) triggers on `v*` tags and
+manual dispatch. It validates the release tag, runs the same CI, runs integration
+tests on `ubuntu-24.04-arm`, then builds release artefacts:
 
 1. **`precompile-macos`** — runs on `macos-14` (M1), caches `native/libs/` keyed on
    `native_sources.lock`, calls `mix elixir_make.precompile`, uploads `cache/*.tar.gz`.
-2. **`precompile-linux`** — same on `ubuntu-22.04` for `x86_64-linux-gnu`.
-3. **`checksum`** — after both jobs finish, fetches all artefacts from the release,
+2. **`precompile-linux`** — same on `ubuntu-24.04` for `x86_64-linux-gnu`.
+3. **`precompile-linux-aarch64`** — same on `ubuntu-24.04-arm` for `aarch64-linux-gnu`.
+4. **`checksum`** — after all precompile jobs finish, fetches all artefacts from the release,
    generates `checksum-angelus.exs`, and uploads it to the same release.
+5. **`publish`** — downloads the generated checksum and publishes the package to Hex.pm.
 
 The Makefile handles CSPICE download in CI exactly as it does locally — no duplicate
 download logic in the workflow file.
+
+NAIF does not publish a Linux ARM64 CSPICE binary package. For `aarch64-linux-gnu`,
+the build downloads the pinned CSPICE source archive and builds `lib/cspice.a`
+locally on the ARM64 runner before linking `spice_worker`.
 
 ### Releasing a new version
 
@@ -120,14 +134,9 @@ download logic in the workflow file.
 git tag v0.1.0
 git push origin v0.1.0
 
-# 3. CI runs automatically (see .github/workflows/release.yml)
-
-# 4. After CI: pull the generated checksum file
-curl -fsSL https://github.com/angelus-astro/angelus/releases/download/v0.1.0/checksum-angelus.exs \
-  -o checksum-angelus.exs
-
-# 5. Publish to Hex (checksum file must be present)
-mix hex.publish
+# 3. Release CI runs automatically (see .github/workflows/release.yml)
+# 4. The workflow uploads precompiled artefacts, generates the checksum file,
+#    and publishes to Hex.pm using HEX_API_KEY.
 ```
 
 ### Artefact naming
@@ -142,6 +151,7 @@ Examples:
 ```
 angelus-port-aarch64-apple-darwin-0.1.0.tar.gz
 angelus-port-x86_64-linux-gnu-0.1.0.tar.gz
+angelus-port-aarch64-linux-gnu-0.1.0.tar.gz
 ```
 
 Each tarball contains only `priv/spice_worker`, as configured by

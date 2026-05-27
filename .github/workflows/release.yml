@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build and publish, for example v0.1.0"
+        description: "Existing release tag to build and publish, for example v0.1.0"
         required: true
         type: string
 
@@ -18,15 +18,39 @@ env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
-  # ── Quality gate (must pass before any precompile job) ───────────────────
-  quality:
-    name: Quality gate
-    runs-on: ubuntu-22.04
+  validate-release-ref:
+    name: Validate release ref
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Verify release tag exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            exit 0
+          fi
+
+          echo "::error title=Release tag not found::Tag '${RELEASE_TAG}' does not exist on origin. Create and push it before running this workflow."
+          echo "Example: git tag ${RELEASE_TAG} && git push origin ${RELEASE_TAG}"
+          exit 1
+
+  ci:
+    name: CI
+    needs: validate-release-ref
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+  integration-tests:
+    name: Integration tests
+    needs: ci
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: erlef/setup-beam@v1
         with:
@@ -56,32 +80,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: native/libs
-          key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
-
-      - name: Cache PLT (Dialyzer)
-        uses: actions/cache@v5
-        with:
-          path: priv/plts
-          key: plts-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
-          restore-keys: plts-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
+          key: native-libs-aarch64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
 
       - name: Get deps
         run: mix deps.get
-
-      - name: Check formatting
-        run: mix format --check-formatted
-
-      - name: Compile (warnings as errors)
-        run: mix compile --warnings-as-errors
-
-      - name: Credo
-        run: mix credo --strict --ignore todo
-
-      - name: Dialyzer
-        run: mix dialyzer --format github
-
-      - name: Unit tests
-        run: mix test
 
       - name: Integration tests (spice_integration)
         run: mix test --include spice_integration
@@ -89,7 +91,7 @@ jobs:
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
-    needs: quality
+    needs: integration-tests
     runs-on: macos-14
     env:
       MIX_ENV: prod
@@ -116,6 +118,10 @@ jobs:
       - name: Precompile
         env:
           ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+          CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
+          TARGET_ARCH: aarch64
+          TARGET_OS: apple
+          TARGET_ABI: darwin
         run: |
           mkdir -p cache
           mix elixir_make.precompile
@@ -129,8 +135,8 @@ jobs:
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
-    needs: quality
-    runs-on: ubuntu-22.04
+    needs: integration-tests
+    runs-on: ubuntu-24.04
     env:
       MIX_ENV: prod
 
@@ -161,6 +167,59 @@ jobs:
       - name: Precompile
         env:
           ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+          CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
+          TARGET_ARCH: x86_64
+          TARGET_OS: linux
+          TARGET_ABI: gnu
+        run: |
+          mkdir -p cache
+          mix elixir_make.precompile
+
+      - name: Upload artefacts
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: cache/*.tar.gz
+
+  # ── Linux (aarch64-linux-gnu) ────────────────────────────────────────────
+  precompile-linux-aarch64:
+    name: Precompile / aarch64-linux-gnu
+    needs: integration-tests
+    runs-on: ubuntu-24.04-arm
+    env:
+      MIX_ENV: prod
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential curl jq
+
+      - name: Cache native/libs (CSPICE + jsmn)
+        uses: actions/cache@v5
+        with:
+          path: native/libs
+          key: native-libs-aarch64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+
+      - name: Get Elixir deps
+        run: mix deps.get
+
+      - name: Precompile
+        env:
+          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+          CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
+          TARGET_ARCH: aarch64
+          TARGET_OS: linux
+          TARGET_ABI: gnu
         run: |
           mkdir -p cache
           mix elixir_make.precompile
@@ -174,8 +233,8 @@ jobs:
   # ── Generate checksum file ────────────────────────────────────────────────
   checksum:
     name: Generate checksum
-    needs: [precompile-macos, precompile-linux]
-    runs-on: ubuntu-22.04
+    needs: [precompile-macos, precompile-linux, precompile-linux-aarch64]
+    runs-on: ubuntu-24.04-arm
     env:
       MIX_ENV: prod
 
@@ -207,7 +266,7 @@ jobs:
   publish:
     name: Publish to Hex.pm
     needs: checksum
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04-arm
     env:
       MIX_ENV: prod
 
