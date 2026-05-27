@@ -289,7 +289,7 @@ jobs:
     needs: checksum
     runs-on: ubuntu-24.04-arm
     env:
-      MIX_ENV: prod
+      MIX_ENV: dev
 
     steps:
       - uses: actions/checkout@v6
