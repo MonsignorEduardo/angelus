@@ -3,7 +3,7 @@ defmodule Angelus.MixProject do
 
   @app :angelus
   @version "0.0.1"
-  @github_url "https://github.com/MonsignorEduardo/angelus"
+  @source_url "https://github.com/MonsignorEduardo/angelus"
   @priv_paths ["spice_worker"]
   @cc_precompiler_compilers %{
     {:unix, :darwin} => %{include_default_ones: true},
@@ -21,12 +21,11 @@ defmodule Angelus.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       make_precompiler: {:port, CCPrecompiler},
-      make_precompiler_url: "#{@github_url}/releases/download/v#{@version}/@{artefact_filename}",
+      make_precompiler_url: "#{@source_url}/releases/download/v#{@version}/@{artefact_filename}",
       make_precompiler_filename: "spice_worker",
       make_precompiler_priv_paths: @priv_paths,
       cc_precompiler: cc_precompiler(),
       make_cwd: "native/spice_worker",
-      make_clean: ["clean"],
       make_force_build: System.get_env("ANGELUS_FORCE_BUILD") == "1",
       dialyzer: dialyzer(),
       description: description(),
@@ -43,13 +42,14 @@ defmodule Angelus.MixProject do
 
   defp deps do
     [
-      {:jason, "~> 1.4"},
-      {:req, "~> 0.5"},
-      {:nimble_pool, "~> 1.1"},
-      {:elixir_make, "~> 0.9", runtime: false},
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:elixir_make, "~> 0.9", runtime: false},
+      {:ex_doc, "~> 0.40.3", only: :dev, runtime: false, warn_if_outdated: true},
+      {:jason, "~> 1.4"},
+      {:nimble_pool, "~> 1.1"},
+      {:req, "~> 0.5"}
     ]
   end
 
@@ -69,6 +69,9 @@ defmodule Angelus.MixProject do
 
   defp package do
     [
+      maintainers: ["Eduardo Gonzalez"],
+      licenses: ["MIT"],
+      links: %{"GitHub" => @source_url},
       files: [
         "lib",
         "native/spice_worker/Makefile",
@@ -80,14 +83,14 @@ defmodule Angelus.MixProject do
         "mix.exs",
         "README.md",
         "LICENSE"
-      ],
-      licenses: ["MIT"],
-      links: %{"GitHub" => @github_url}
+      ]
     ]
   end
 
   defp description do
-    "Elixir ephemeris library backed by NAIF CSPICE and JPL kernels."
+    """
+    Elixir ephemeris library backed by NAIF CSPICE and JPL kernels.
+    """
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
