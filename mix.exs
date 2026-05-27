@@ -21,6 +21,7 @@ defmodule Angelus.MixProject do
       make_precompiler_url: "#{@github_url}/releases/download/v#{@version}/@{artefact_filename}",
       make_precompiler_filename: "spice_worker",
       make_precompiler_priv_paths: ["spice_worker"],
+      cc_precompiler: cc_precompiler(),
       make_cwd: "native/spice_worker",
       make_clean: ["clean"],
       # Always build from source in dev/test — never download precompiled
@@ -47,6 +48,21 @@ defmodule Angelus.MixProject do
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp cc_precompiler do
+    [
+      only_listed_targets: true,
+      compilers: %{
+        {:unix, :darwin} => %{
+          "aarch64-apple-darwin" =>
+            {"gcc", "g++", "<%= cc %> -arch arm64", "<%= cxx %> -arch arm64"}
+        },
+        {:unix, :linux} => %{
+          "x86_64-linux-gnu" => "x86_64-linux-gnu-"
+        }
+      }
     ]
   end
 
