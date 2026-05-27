@@ -15,8 +15,6 @@ permissions:
   contents: write
 
 env:
-  LC_ALL: C
-  LANG: C
   MIX_ENV: test
   ELIXIR_VERSION: "1.19"
   OTP_VERSION: "27"

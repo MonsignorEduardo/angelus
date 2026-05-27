@@ -10,8 +10,6 @@ on:
         type: string
 
 env:
-  LC_ALL: C
-  LANG: C
   ELIXIR_VERSION: "1.19"
   OTP_VERSION: "27"
   MIX_ENV: test
