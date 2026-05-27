@@ -11,6 +11,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+
 env:
   MIX_ENV: test
   ELIXIR_VERSION: "1.19"
