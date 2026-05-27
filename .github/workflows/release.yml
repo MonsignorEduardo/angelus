@@ -38,6 +38,22 @@ jobs:
           echo "Example: git tag ${RELEASE_TAG} && git push origin ${RELEASE_TAG}"
           exit 1
 
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Verify mix.exs version matches release tag
+        run: |
+          MIX_VERSION=$(grep -m1 '@version' mix.exs | sed 's/.*@version "\(.*\)".*/\1/')
+          TAG_VERSION="${RELEASE_TAG#v}"
+
+          if [ "${MIX_VERSION}" != "${TAG_VERSION}" ]; then
+            echo "::error title=Version mismatch::mix.exs version '${MIX_VERSION}' does not match release tag '${RELEASE_TAG}'. Update @version in mix.exs before releasing."
+            exit 1
+          fi
+
+          echo "Version check passed: mix.exs version '${MIX_VERSION}' matches tag '${RELEASE_TAG}'."
+
   ci:
     name: CI
     needs: validate-release-ref

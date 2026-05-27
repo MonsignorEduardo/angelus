@@ -2,8 +2,8 @@ defmodule Angelus.MixProject do
   use Mix.Project
 
   @app :angelus
-  @version "0.1.0"
-  @github_url "https://github.com/angelus-astro/angelus"
+  @version "0.0.2"
+  @github_url "https://github.com/MonsignorEduardo/angelus"
   @priv_paths ["spice_worker"]
   @cc_precompiler_compilers %{
     {:unix, :darwin} => %{include_default_ones: true},
