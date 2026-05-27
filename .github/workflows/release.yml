@@ -65,6 +65,8 @@ jobs:
     name: Integration tests
     needs: ci
     runs-on: ubuntu-24.04-arm
+    env:
+      ANGELUS_FORCE_BUILD: "1"
 
     steps:
       - uses: actions/checkout@v6
@@ -136,20 +138,20 @@ jobs:
 
       - name: Precompile
         env:
-          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/_build/precompiled
           CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
           TARGET_ARCH: aarch64
           TARGET_OS: apple
           TARGET_ABI: darwin
         run: |
-          mkdir -p cache
+          mkdir -p _build/precompiled
           mix elixir_make.precompile
 
       - name: Upload artefacts
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: cache/*.tar.gz
+          files: _build/precompiled/*.tar.gz
 
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
@@ -185,20 +187,20 @@ jobs:
 
       - name: Precompile
         env:
-          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/_build/precompiled
           CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
           TARGET_ARCH: x86_64
           TARGET_OS: linux
           TARGET_ABI: gnu
         run: |
-          mkdir -p cache
+          mkdir -p _build/precompiled
           mix elixir_make.precompile
 
       - name: Upload artefacts
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: cache/*.tar.gz
+          files: _build/precompiled/*.tar.gz
 
   # ── Linux (aarch64-linux-gnu) ────────────────────────────────────────────
   precompile-linux-aarch64:
@@ -234,20 +236,20 @@ jobs:
 
       - name: Precompile
         env:
-          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/cache
+          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/_build/precompiled
           CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
           TARGET_ARCH: aarch64
           TARGET_OS: linux
           TARGET_ABI: gnu
         run: |
-          mkdir -p cache
+          mkdir -p _build/precompiled
           mix elixir_make.precompile
 
       - name: Upload artefacts
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: cache/*.tar.gz
+          files: _build/precompiled/*.tar.gz
 
   # ── Generate checksum file ────────────────────────────────────────────────
   checksum:
@@ -273,13 +275,13 @@ jobs:
       - name: Fetch all precompiled artefacts and generate checksum
         run: |
           MIX_ENV=prod mix elixir_make.checksum --all --ignore-unavailable
-          cat checksum-angelus.exs
+          cat checksum.exs
 
       - name: Upload checksum file
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: checksum-angelus.exs
+          files: checksum.exs
 
   # ── Publish to Hex.pm ────────────────────────────────────────────────────
   publish:
@@ -305,8 +307,8 @@ jobs:
       - name: Download checksum file
         run: |
           gh release download ${{ env.RELEASE_TAG }} \
-            --pattern "checksum-angelus.exs" \
-            --output checksum-angelus.exs
+            --pattern "checksum.exs" \
+            --output checksum.exs
         env:
           GH_TOKEN: ${{ github.token }}
 

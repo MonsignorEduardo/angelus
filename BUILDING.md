@@ -20,8 +20,8 @@ When `mix deps.compile` runs, `elixir_make` will:
 
 1. Detect your platform (`aarch64-apple-darwin`, `x86_64-linux-gnu`, or `aarch64-linux-gnu`)
 2. Download the precompiled `spice_worker` binary from GitHub Releases
-3. Verify its SHA-256 checksum against `checksum-angelus.exs`
-4. Install it to `priv/spice_worker`
+3. Verify its SHA-256 checksum against `checksum.exs`
+4. Install it to the compiled app's `priv/spice_worker`
 
 No C compiler or CSPICE installation is needed.
 
@@ -33,7 +33,7 @@ No C compiler or CSPICE installation is needed.
 | Linux glibc x86_64    | `x86_64-linux-gnu`       |
 | Linux glibc ARM64     | `aarch64-linux-gnu`      |
 
-If your platform is not listed, see [Local dev build](#local-dev-build).
+If your platform is not listed, `elixir_make` falls back to a local source build. See [Local dev build](#local-dev-build) for the required tools.
 
 ---
 
@@ -50,7 +50,7 @@ If your platform is not listed, see [Local dev build](#local-dev-build).
 
 ```bash
 mix deps.get
-just build             # downloads CSPICE + jsmn → native/libs/, compiles spice_worker
+just build             # ANGELUS_FORCE_BUILD=1; downloads CSPICE + jsmn and compiles spice_worker
 just test              # unit tests (no CSPICE required at test time)
 just test-integration  # build + mix test --include spice_integration
 ```
@@ -59,33 +59,26 @@ just test-integration  # build + mix test --include spice_integration
 
 ```bash
 mix deps.get
-mix compile
+ANGELUS_FORCE_BUILD=1 mix compile
 # The Makefile auto-downloads CSPICE N0067 to native/libs/cspice/
 # and jsmn to native/libs/jsmn/ on first run.
-# make_force_build: true is set for :dev/:test in mix.exs,
-# so mix compile always builds from source in those envs.
 ```
 
 ### Stub build (no CSPICE — unit tests only)
 
 ```bash
 mix deps.get
-mix compile            # stub worker — SPICE ops return an error
+ANGELUS_FORCE_BUILD=1 mix compile -- SKIP_CSPICE=1
 mix test               # unit tests, all pass
 ```
 
-The stub build is the default when `SKIP_CSPICE=1` is passed to `make`.
-In `:dev` and `:test` envs, `mix compile` always builds from source
-(`make_force_build: true` in `mix.exs`).
+`ANGELUS_FORCE_BUILD=1` makes `elixir_make` call the local Makefile instead of downloading a precompiled worker. `SKIP_CSPICE=1` then tells that Makefile to compile the stub worker.
 
 ### Re-downloading native libs
 
 ```bash
-just clean-libs        # removes native/libs/ entirely
+just clean             # removes _build, native/spice_worker/build, and native/libs
 just build             # re-downloads CSPICE + jsmn and recompiles
-# or without just:
-cd native/spice_worker && make clean-libs && cd ../..
-mix compile
 ```
 
 ### Run integration tests (requires kernel files)
@@ -103,24 +96,23 @@ mix test --include spice_integration
 ### How it works
 
 The pull request CI workflow (`.github/workflows/ci.yml`) runs on
-`ubuntu-24.04-arm` with `SKIP_CSPICE=1`, so it builds the stub worker and does not
-download or build CSPICE. It checks formatting first, compiles second, then runs
-Credo, Dialyzer, and tests in parallel.
+`ubuntu-24.04-arm` with `ANGELUS_FORCE_BUILD=1` and `SKIP_CSPICE=1`, so it builds
+the stub worker and does not download or build CSPICE. It checks formatting,
+compiles, then runs Credo, Dialyzer, and tests.
 
 The release workflow (`.github/workflows/release.yml`) triggers on `v*` tags and
 manual dispatch. It validates the release tag, runs the same CI, runs integration
 tests on `ubuntu-24.04-arm`, then builds release artefacts:
 
 1. **`precompile-macos`** — runs on `macos-14` (M1), caches `native/libs/` keyed on
-   `native_sources.lock`, calls `mix elixir_make.precompile`, uploads `cache/*.tar.gz`.
+   `native_sources.lock`, calls `mix elixir_make.precompile`, uploads `_build/precompiled/*.tar.gz`.
 2. **`precompile-linux`** — same on `ubuntu-24.04` for `x86_64-linux-gnu`.
 3. **`precompile-linux-aarch64`** — same on `ubuntu-24.04-arm` for `aarch64-linux-gnu`.
 4. **`checksum`** — after all precompile jobs finish, fetches all artefacts from the release,
-   generates `checksum-angelus.exs`, and uploads it to the same release.
+   generates `checksum.exs`, and uploads it to the same release.
 5. **`publish`** — downloads the generated checksum and publishes the package to Hex.pm.
 
-The Makefile handles CSPICE download in CI exactly as it does locally — no duplicate
-download logic in the workflow file.
+The Makefile handles CSPICE download in CI exactly as it does locally. The workflow only selects the target and output directory.
 
 NAIF does not publish a Linux ARM64 CSPICE binary package. For `aarch64-linux-gnu`,
 the build downloads the pinned CSPICE source archive and builds `lib/cspice.a`
@@ -172,8 +164,9 @@ native/
   native_sources.lock        — pinned versions + SHA-256 for CSPICE and jsmn
   libs/                      — downloaded at build time (gitignored)
     cspice/
-      include/               — CSPICE headers
-      lib/cspice.a           — CSPICE static archive
+      <target>/              — target-specific CSPICE build/download
+        include/             — CSPICE headers
+        lib/cspice.a         — CSPICE static archive
     jsmn/
       jsmn.h                 — single-header JSON tokenizer
   spice_worker/
@@ -181,14 +174,14 @@ native/
       main.c                 — dispatcher, entry point
       protocol.{h,c}         — packet:4 framing
       cspice_ops.{h,c}       — CSPICE wrappers (stub without CSPICE)
-    build/                   — object files (gitignored)
+    build/<target>/          — object files (gitignored)
     patches/                 — reserved for CSPICE build patches
-    Makefile                 — all, fetch-cspice, fetch-jsmn,
-                               download-precompiled, clean, clean-libs
+    Makefile                 — internal elixir_make build; all, fetch-cspice,
+                               fetch-jsmn
 
-priv/
-  spice_worker               — compiled/downloaded binary (gitignored)
+_build/<env>/lib/angelus/priv/
+  spice_worker               — compiled/downloaded runtime binary
 
-checksum-angelus.exs         — generated by `mix elixir_make.checksum`
+checksum.exs                 — generated by `mix elixir_make.checksum`
                                required for Hex publish; do not gitignore
 ```

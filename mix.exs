@@ -27,7 +27,7 @@ defmodule Angelus.MixProject do
       cc_precompiler: cc_precompiler(),
       make_cwd: "native/spice_worker",
       make_clean: ["clean"],
-      make_force_build: Mix.env() in [:dev, :test],
+      make_force_build: System.get_env("ANGELUS_FORCE_BUILD") == "1",
       dialyzer: dialyzer(),
       package: package()
     ]
@@ -72,7 +72,7 @@ defmodule Angelus.MixProject do
         "lib",
         "native/spice_worker",
         "priv/.gitkeep",
-        "checksum-angelus.exs",
+        "checksum.exs",
         "mix.exs",
         "README.md",
         "LICENSE"

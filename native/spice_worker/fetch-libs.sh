@@ -53,30 +53,42 @@ fetch_cspice() {
     return
   fi
 
-  OS="$(uname -s)"
-  ARCH="$(uname -m)"
+  TARGET="${CC_PRECOMPILER_CURRENT_TARGET:-}"
 
-  case "$OS/$ARCH" in
-    Darwin/arm64)
+  if [ -z "$TARGET" ] && [ -n "${TARGET_ARCH:-}" ] && [ -n "${TARGET_OS:-}" ] && [ -n "${TARGET_ABI:-}" ]; then
+    TARGET="$TARGET_ARCH-$TARGET_OS-$TARGET_ABI"
+  fi
+
+  if [ -z "$TARGET" ]; then
+    case "$(uname -s)/$(uname -m)" in
+      Darwin/arm64) TARGET="aarch64-apple-darwin" ;;
+      Linux/x86_64) TARGET="x86_64-linux-gnu" ;;
+      Linux/aarch64) TARGET="aarch64-linux-gnu" ;;
+      *) die "unsupported platform $(uname -s)/$(uname -m) — supported: aarch64-apple-darwin, x86_64-linux-gnu, aarch64-linux-gnu" ;;
+    esac
+  fi
+
+  case "$TARGET" in
+    aarch64-apple-darwin)
       URL="$(      jq -r '.cspice.url_macos_arm64'   "$LOCK")"
       EXPECTED="$( jq -r '.cspice.sha256_macos_arm64' "$LOCK")"
       ;;
-    Linux/x86_64)
+    x86_64-linux-gnu)
       URL="$(      jq -r '.cspice.url_linux_x86_64'   "$LOCK")"
       EXPECTED="$( jq -r '.cspice.sha256_linux_x86_64' "$LOCK")"
       ;;
-    Linux/aarch64)
+    aarch64-linux-gnu)
       URL="$(      jq -r '.cspice.url_source'   "$LOCK")"
       EXPECTED="$( jq -r '.cspice.sha256_source' "$LOCK")"
       BUILD_FROM_SOURCE=1
       ;;
     *)
-      die "unsupported platform $OS/$ARCH — supported: Darwin/arm64, Linux/x86_64, Linux/aarch64"
+      die "unsupported target $TARGET — supported: aarch64-apple-darwin, x86_64-linux-gnu, aarch64-linux-gnu"
       ;;
   esac
 
   VERSION="$(jq -r '.cspice.version' "$LOCK")"
-  echo "Downloading CSPICE $VERSION for $OS/$ARCH ..."
+  echo "Downloading CSPICE $VERSION for $TARGET ..."
   curl -fsSL "$URL" -o /tmp/cspice.tar.Z
 
   echo "Verifying checksum ..."
