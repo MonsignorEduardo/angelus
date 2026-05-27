@@ -1,12 +1,18 @@
 defmodule Angelus.MixProject do
   use Mix.Project
 
+  @app :angelus
   @version "0.1.0"
   @github_url "https://github.com/angelus-astro/angelus"
+  @priv_paths ["spice_worker"]
+  @cc_precompiler_compilers %{
+    {:unix, :darwin} => %{include_default_ones: true},
+    {:unix, :linux} => %{include_default_ones: true}
+  }
 
   def project do
     [
-      app: :angelus,
+      app: @app,
       version: @version,
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
@@ -14,20 +20,15 @@ defmodule Angelus.MixProject do
       aliases: aliases(),
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      dialyzer: [plt_add_apps: [:mix], plt_local_path: "priv/plts"],
-
-      # elixir_make / cc_precompiler — precompiled spice_worker binary
       make_precompiler: {:port, CCPrecompiler},
       make_precompiler_url: "#{@github_url}/releases/download/v#{@version}/@{artefact_filename}",
       make_precompiler_filename: "spice_worker",
-      make_precompiler_priv_paths: ["spice_worker"],
+      make_precompiler_priv_paths: @priv_paths,
       cc_precompiler: cc_precompiler(),
       make_cwd: "native/spice_worker",
       make_clean: ["clean"],
-      # Always build from source in dev/test — never download precompiled
       make_force_build: Mix.env() in [:dev, :test],
-
-      # Package config — checksum file must be included in Hex release
+      dialyzer: dialyzer(),
       package: package()
     ]
   end
@@ -54,15 +55,14 @@ defmodule Angelus.MixProject do
   defp cc_precompiler do
     [
       only_listed_targets: true,
-      compilers: %{
-        {:unix, :darwin} => %{
-          "aarch64-apple-darwin" =>
-            {"gcc", "g++", "<%= cc %> -arch arm64", "<%= cxx %> -arch arm64"}
-        },
-        {:unix, :linux} => %{
-          "x86_64-linux-gnu" => "x86_64-linux-gnu-"
-        }
-      }
+      compilers: @cc_precompiler_compilers
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_add_apps: [:mix],
+      plt_local_path: "priv/plts"
     ]
   end
 
@@ -78,7 +78,7 @@ defmodule Angelus.MixProject do
         "LICENSE"
       ],
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/angelus-astro/angelus"}
+      links: %{"GitHub" => @github_url}
     ]
   end
 

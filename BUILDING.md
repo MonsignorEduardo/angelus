@@ -101,12 +101,16 @@ mix test --include spice_integration
 
 ### How it works
 
-The GitHub Actions workflow (`.github/workflows/release.yml`) triggers on `v*` tags:
+The pull request CI workflow (`.github/workflows/ci.yml`) runs format first, then
+compile, then runs Credo, Dialyzer, and tests in parallel. The release workflow
+(`.github/workflows/release.yml`) triggers on `v*` tags and runs that same CI plus
+integration tests before building release artefacts:
 
 1. **`precompile-macos`** — runs on `macos-14` (M1), caches `native/libs/` keyed on
    `native_sources.lock`, calls `mix elixir_make.precompile`, uploads `cache/*.tar.gz`.
-2. **`precompile-linux`** — same on `ubuntu-22.04` for `x86_64-linux-gnu`.
-3. **`checksum`** — after both jobs finish, fetches all artefacts from the release,
+2. **`precompile-linux`** — same on `ubuntu-24.04` for `x86_64-linux-gnu`.
+3. **`precompile-linux-aarch64`** — same on `ubuntu-24.04-arm` for `aarch64-linux-gnu`.
+4. **`checksum`** — after all precompile jobs finish, fetches all artefacts from the release,
    generates `checksum-angelus.exs`, and uploads it to the same release.
 
 The Makefile handles CSPICE download in CI exactly as it does locally — no duplicate
@@ -142,6 +146,7 @@ Examples:
 ```
 angelus-port-aarch64-apple-darwin-0.1.0.tar.gz
 angelus-port-x86_64-linux-gnu-0.1.0.tar.gz
+angelus-port-aarch64-linux-gnu-0.1.0.tar.gz
 ```
 
 Each tarball contains only `priv/spice_worker`, as configured by
