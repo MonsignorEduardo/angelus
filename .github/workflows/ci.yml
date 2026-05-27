@@ -13,6 +13,7 @@ env:
   ELIXIR_VERSION: "1.19"
   OTP_VERSION: "27"
   MIX_ENV: test
+  ANGELUS_FORCE_BUILD: "1"
   SKIP_CSPICE: "1"
 
 jobs:

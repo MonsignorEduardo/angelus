@@ -1,4 +1,4 @@
-# Makefile — builds priv/spice_worker
+# Makefile — internal elixir_make build for Angelus priv/spice_worker
 #
 # Layout:
 #   src/       — C source files
@@ -6,26 +6,24 @@
 #   patches/   — reserved for CSPICE build patches
 #   ../libs/   — downloaded deps: cspice/, jsmn/ (gitignored)
 #
-# Build modes:
+# Invocation:
+#
+#   This Makefile is called by elixir_make. Use `mix compile`, `just build`,
+#   or the release workflow rather than invoking `make` directly.
+#
+# Build modes used by elixir_make:
 #
 #   1. Full build with CSPICE (auto-downloads if needed):
-#        make
+#        mix compile with ANGELUS_FORCE_BUILD=1
 #
 #   2. Stub build (no CSPICE):
-#        make SKIP_CSPICE=1
+#        mix compile -- SKIP_CSPICE=1 with ANGELUS_FORCE_BUILD=1
 #      Returns an error for all SPICE ops. Used for unit tests.
-#
-#   3. Download precompiled binary from GitHub Releases:
-#        make download-precompiled
-#      Called by elixir_make/cc_precompiler when a release exists.
 #
 # Targets:
 #   all                  — fetch deps + compile (default)
 #   fetch-cspice         — download + verify CSPICE to ../libs/cspice/
 #   fetch-jsmn           — download jsmn.h to ../libs/jsmn/
-#   download-precompiled — download binary from GitHub Releases
-#   clean                — remove build/ objects and priv/spice_worker
-#   clean-libs           — remove ../libs/ (forces re-download)
 
 # ── Compiler ──────────────────────────────────────────────────────────────
 CC     ?= cc
@@ -35,10 +33,11 @@ CFLAGS ?= -O2 -Wall -Wextra -std=c11
 WORKER_DIR   := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 LIBS_DIR     := $(WORKER_DIR)../libs
 SRC_DIR      := $(WORKER_DIR)src
-BUILD_DIR    := $(WORKER_DIR)build
+BUILD_TARGET := $(if $(CC_PRECOMPILER_CURRENT_TARGET),$(CC_PRECOMPILER_CURRENT_TARGET),native)
+BUILD_DIR    := $(WORKER_DIR)build/$(BUILD_TARGET)
 FETCH_SCRIPT := $(WORKER_DIR)fetch-libs.sh
 
-CSPICE_DIR ?= $(LIBS_DIR)/cspice
+CSPICE_DIR ?= $(LIBS_DIR)/cspice/$(BUILD_TARGET)
 JSMN_DIR   := $(LIBS_DIR)/jsmn
 JSMN_H     := $(JSMN_DIR)/jsmn.h
 
@@ -59,11 +58,17 @@ else
   CSPICE_DEP :=
 endif
 
-.PHONY: all clean clean-libs fetch-cspice fetch-jsmn priv download-precompiled
+.PHONY: all fetch-cspice fetch-jsmn priv require-mix-app-path
 
-all: $(CSPICE_DEP) fetch-jsmn priv $(TARGET)
+all: require-mix-app-path $(CSPICE_DEP) fetch-jsmn priv $(TARGET)
 
-priv:
+require-mix-app-path:
+	@if [ -z "$(MIX_APP_PATH)" ]; then \
+	  echo "ERROR: MIX_APP_PATH is required; run through mix/elixir_make or pass MIX_APP_PATH explicitly"; \
+	  exit 1; \
+	fi
+
+priv: require-mix-app-path
 	@mkdir -p $(PRIV_DIR)
 
 # ── Fetch jsmn ────────────────────────────────────────────────────────────
@@ -82,25 +87,3 @@ $(TARGET): $(OBJECTS)
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(SRC_DIR)/protocol.h $(SRC_DIR)/cspice_ops.h $(JSMN_H)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DJSMN_STATIC -I$(JSMN_DIR) -I$(SRC_DIR) -c $< -o $@
-
-# ── Precompiled binary download ───────────────────────────────────────────
-# Called by elixir_make/cc_precompiler when ELIXIR_MAKE_PRECOMPILE_URL is set.
-download-precompiled:
-	@mkdir -p $(PRIV_DIR)
-	@if [ -z "$(ELIXIR_MAKE_PRECOMPILE_URL)" ]; then \
-	  echo "ERROR: ELIXIR_MAKE_PRECOMPILE_URL is not set"; exit 1; \
-	fi
-	@echo "Downloading precompiled spice_worker from $(ELIXIR_MAKE_PRECOMPILE_URL) ..."
-	@curl -fsSL "$(ELIXIR_MAKE_PRECOMPILE_URL)" -o /tmp/spice_worker_precompiled.tar.gz
-	@tar -xzf /tmp/spice_worker_precompiled.tar.gz -C $(PRIV_DIR)
-	@chmod +x $(TARGET)
-	@rm -f /tmp/spice_worker_precompiled.tar.gz
-	@echo "spice_worker installed to $(TARGET)"
-
-# ── Clean ─────────────────────────────────────────────────────────────────
-clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
-
-clean-libs:
-	rm -rf $(LIBS_DIR)
-	@echo "Removed $(LIBS_DIR)"

@@ -17,7 +17,7 @@ out of scope for this release.
 - Default v0.1 JPL/NAIF kernel policy using DE442 and companion body-center
   kernels.
 - Explicit runtime kernel loading; kernels are not loaded implicitly.
-- Native SPICE worker built from source in development and test.
+- Native SPICE worker distributed as precompiled release artefacts for supported platforms.
 
 ## Supported Bodies
 
@@ -70,12 +70,10 @@ end
 ## Requirements
 
 - Elixir `~> 1.19`.
-- A C compiler available as `cc`.
-- `curl` and `jq` for downloading native sources.
-- `tar` and either `sha256sum` or `shasum` for source verification.
+- For supported platforms, no local C compiler or CSPICE installation is required when installing from Hex.
+- Local source builds require a C compiler available as `cc`, plus `curl`, `jq`, `tar`, and either `sha256sum` or `shasum`.
 
-Native CSPICE source downloads currently support `Darwin/arm64` and
-`Linux/x86_64`.
+Precompiled native workers are produced for macOS Apple Silicon, Linux glibc x86_64, and Linux glibc ARM64.
 
 ## Quick Start
 
@@ -85,6 +83,8 @@ Fetch dependencies and compile the native worker:
 mix deps.get
 mix compile
 ```
+
+When installed from Hex on a supported platform, compilation downloads the matching precompiled `spice_worker`. Local development in this repository can force a source build with `ANGELUS_FORCE_BUILD=1` or `just build`.
 
 Download the default v0.1 kernel set:
 
@@ -183,6 +183,18 @@ mix test
 mix consistency
 ```
 
+By default, `mix compile` may use a published precompiled worker. To force a local source build while working on this repository:
+
+```bash
+ANGELUS_FORCE_BUILD=1 mix compile
+```
+
+For a fast stub worker without CSPICE:
+
+```bash
+ANGELUS_FORCE_BUILD=1 mix compile -- SKIP_CSPICE=1
+```
+
 If you have `just` installed, the repository also provides:
 
 ```bash
@@ -190,12 +202,10 @@ just build             # compile with CSPICE support
 just build-stub        # compile stub worker only, no CSPICE download
 just test              # run unit tests
 just test-integration  # build with CSPICE and run integration tests
-just clean             # remove compiled worker
-just clean-libs        # remove downloaded native libraries
+just clean             # remove local build outputs and downloaded native libraries
 ```
 
-Unit tests can run against the stub worker. Integration tests require the real
-CSPICE worker and downloaded kernels.
+Unit tests can run against the stub worker. Integration tests require the real CSPICE worker and downloaded kernels.
 
 ## Kernel and Data Licensing
 
