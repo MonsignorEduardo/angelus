@@ -92,6 +92,12 @@ Download the default v0.1 kernel set:
 mix angelus.kernels
 ```
 
+For faster local development, download the smaller core profile:
+
+```bash
+mix angelus.kernels --profile core
+```
+
 This downloads JPL/NAIF kernels into `priv/kernels/`. It does not load them at
 runtime.
 
@@ -116,7 +122,18 @@ sun.longitude
 
 ## Kernel Loading
 
-`Angelus.load_kernels/0` loads the default files from `priv/kernels/`.
+`Angelus.load_kernels/0` loads the default full profile files from
+`priv/kernels/`.
+
+Use `:profile` to load a smaller kernel profile:
+
+```elixir
+Angelus.load_kernels(profile: :core)
+```
+
+The core profile contains `naif0012.tls`, `pck00011.tpc`,
+`gm_de440.tpc`, and `de442.bsp`. The full profile adds the larger companion SPKs
+for body-center targets from Mars through Pluto.
 
 Use `:base_path` when kernels live somewhere else:
 
@@ -135,7 +152,7 @@ You can also pass explicit absolute kernel paths:
 
 ```elixir
 Angelus.load_kernels([
-  "/opt/angelus/kernels/latest_leapseconds.tls",
+  "/opt/angelus/kernels/naif0012.tls",
   "/opt/angelus/kernels/pck00011.tpc",
   "/opt/angelus/kernels/gm_de440.tpc",
   "/opt/angelus/kernels/de442.bsp",
@@ -150,8 +167,8 @@ Angelus.load_kernels([
 ])
 ```
 
-Explicit paths must form the complete supported v0.1 kernel set. See
-`Angelus.Spice.default_kernel_files/0` for the required filenames.
+Explicit paths must form either the core or full supported v0.1 kernel set. See
+`Angelus.Spice.default_kernel_files/0` for the default full filenames.
 
 ## Return Values
 
@@ -179,7 +196,7 @@ Common commands:
 ```bash
 mix setup
 mix compile
-mix test
+mix test test/unit
 mix consistency
 ```
 
@@ -200,12 +217,13 @@ If you have `just` installed, the repository also provides:
 ```bash
 just build             # compile with CSPICE support
 just build-stub        # compile stub worker only, no CSPICE download
-just test              # run unit tests
-just test-integration  # build with CSPICE and run integration tests
+just test              # run test/unit only
+just test-integration  # build with CSPICE and run e2e Horizons validation tests
+just test-e2e          # alias for test-integration
 just clean             # remove local build outputs and downloaded native libraries
 ```
 
-Unit tests can run against the stub worker. Integration tests require the real CSPICE worker and downloaded kernels.
+Unit tests live under `test/unit` and run without CSPICE by using validation-only paths or `Angelus.SpiceStub`. E2e tests live under `test/e2e` and require the real CSPICE worker, downloaded kernels, and a real JPL Horizons fixture at `test/fixtures/horizons/de442_positions.json`.
 
 ## Kernel and Data Licensing
 

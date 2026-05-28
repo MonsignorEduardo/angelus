@@ -48,6 +48,7 @@ defmodule Angelus.MixProject do
       {:ex_doc, "~> 0.40.3", only: :dev, runtime: false, warn_if_outdated: true},
       {:jason, "~> 1.4"},
       {:nimble_pool, "~> 1.1"},
+      {:owl, "~> 0.13"},
       {:req, "~> 0.5"}
     ]
   end
@@ -133,7 +134,7 @@ defmodule Angelus.MixProject do
         "credo -A",
         "cmd echo",
         "cmd echo Checking tests ...",
-        "cmd sh -c 'MIX_ENV=test mix test'",
+        "cmd sh -c 'MIX_ENV=test mix test test/unit'",
         "cmd echo"
       ]
     ]

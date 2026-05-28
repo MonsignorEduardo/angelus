@@ -30,8 +30,11 @@ clean:
 
 # Run unit tests (no CSPICE required)
 test:
-    mix test
+    mix test test/unit
 
-# Run integration tests (requires CSPICE worker)
+# Run e2e tests against CSPICE and the JPL Horizons fixture
 test-integration: build
-    mix test --include spice_integration
+    mix test test/e2e --include e2e
+
+# Run e2e tests against CSPICE and the JPL Horizons fixture
+test-e2e: test-integration

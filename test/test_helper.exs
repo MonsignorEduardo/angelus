@@ -1,1 +1,1 @@
-ExUnit.start(exclude: [:spice_integration])
+ExUnit.start(exclude: [:e2e])

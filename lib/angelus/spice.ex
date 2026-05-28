@@ -11,6 +11,12 @@ defmodule Angelus.Spice do
   def default_kernel_files, do: KernelSet.required_files()
 
   @doc """
+  Returns the list of kernel filenames required by a supported v0.1 kernel profile.
+  """
+  @spec default_kernel_files(:core | :full) :: [String.t()]
+  def default_kernel_files(profile), do: KernelSet.required_files(profile)
+
+  @doc """
   Loads the default v0.1 SPICE kernel set from `priv/kernels/`.
 
   Equivalent to `load_kernels([])`.
@@ -37,6 +43,8 @@ defmodule Angelus.Spice do
 
     * `:base_path` — directory containing the kernel files (default:
       `"\#{File.cwd!()}/priv/kernels"`).
+    * `:profile` — kernel profile to load, either `:full` or `:core`
+      (default: `:full`).
     * `:replace` — when `true`, clears any previously loaded kernels before
       loading (default: `false`).
 
@@ -143,13 +151,21 @@ defmodule Angelus.Spice do
 
   defp load_default_kernels(opts) do
     base_path = Keyword.get(opts, :base_path, Path.join([File.cwd!(), "priv", "kernels"]))
+    profile = Keyword.get(opts, :profile, :full)
     replace? = Keyword.get(opts, :replace, false)
 
     opts
-    |> reject_unknown_options([:base_path, :replace])
+    |> reject_unknown_options([:base_path, :profile, :replace])
     |> case do
-      :ok -> Server.load_kernels(KernelSet.default_paths(base_path), replace: replace?)
-      {:error, reason} -> {:error, reason}
+      :ok ->
+        if profile in KernelSet.profiles() do
+          Server.load_kernels(KernelSet.default_paths(base_path, profile), replace: replace?)
+        else
+          {:error, {:unsupported_option, {:profile, profile}}}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

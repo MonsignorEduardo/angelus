@@ -209,7 +209,7 @@ static void dispatch(const char *json) {
 
     /* Build paths for the default v0.1 kernel set */
     const char *kernel_files[] = {
-      "latest_leapseconds.tls",
+      "naif0012.tls",
       "pck00011.tpc",
       "gm_de440.tpc",
       "de442.bsp",

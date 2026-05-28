@@ -1,0 +1,62 @@
+defmodule Angelus.Ephemeris.HorizonsValidationTest do
+  use ExUnit.Case, async: false
+
+  @moduletag :e2e
+
+  @fixture Path.join(["test", "fixtures", "horizons", "de442_positions.json"])
+  @default_tolerances %{
+    "longitude" => 1.0e-5,
+    "latitude" => 1.0e-5,
+    "distance_au" => 1.0e-8
+  }
+
+  setup_all do
+    assert {:ok, _metadata} = Angelus.Spice.load_kernels(replace: true)
+    :ok
+  end
+
+  test "SPICE-backed positions match JPL Horizons fixture" do
+    fixture = read_fixture!()
+    tolerances = Map.merge(@default_tolerances, Map.get(fixture, "tolerances", %{}))
+
+    Enum.each(fixture["cases"], fn case_ ->
+      body = body_atom!(case_["body"])
+      datetime = datetime!(case_["datetime_utc"])
+
+      assert {:ok, %{^body => position}} = Angelus.Ephemeris.positions([body], datetime)
+
+      assert position.spice_target == case_["spice_target"]
+      assert position.spice_id == case_["spice_id"]
+      assert Atom.to_string(position.target_kind) == case_["target_kind"]
+
+      assert_close(position.longitude, case_["longitude"], tolerances["longitude"], case_)
+      assert_close(position.latitude, case_["latitude"], tolerances["latitude"], case_)
+      assert_close(position.distance_au, case_["distance_au"], tolerances["distance_au"], case_)
+    end)
+  end
+
+  defp read_fixture! do
+    unless File.exists?(@fixture) do
+      flunk("missing Horizons fixture #{@fixture}; generate it from real JPL Horizons output")
+    end
+
+    assert {:ok, body} = File.read(@fixture)
+    assert {:ok, %{"cases" => cases} = fixture} = Jason.decode(body)
+    assert is_list(cases)
+
+    fixture
+  end
+
+  defp body_atom!(body) when is_binary(body),
+    do: body |> String.downcase() |> String.to_existing_atom()
+
+  defp datetime!(datetime_utc) do
+    assert {:ok, datetime, 0} = DateTime.from_iso8601(datetime_utc)
+    datetime
+  end
+
+  defp assert_close(actual, expected, tolerance, case_) do
+    assert abs(actual - expected) <= tolerance,
+           "#{case_["body"]} at #{case_["datetime_utc"]}: expected #{expected}, got #{actual}, tolerance #{tolerance}"
+  end
+end

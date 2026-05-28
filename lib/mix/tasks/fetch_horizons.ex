@@ -1,4 +1,4 @@
-defmodule Mix.Tasks.Angelus.Validate.Horizons do
+defmodule Mix.Tasks.Angelus.FetchHorizons do
   @moduledoc "Validates or regenerates local JPL Horizons fixtures."
 
   use Mix.Task

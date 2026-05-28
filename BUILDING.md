@@ -53,7 +53,7 @@ CSPICE build.
 mix deps.get
 just build             # ANGELUS_FORCE_BUILD=1; downloads CSPICE + jsmn and compiles spice_worker
 just test              # unit tests (no CSPICE required at test time)
-just test-integration  # build + mix test --include spice_integration
+just test-integration  # build + mix test test/e2e --include e2e
 ```
 
 ### Manual build (without just)
@@ -70,7 +70,7 @@ ANGELUS_FORCE_BUILD=1 mix compile
 ```bash
 mix deps.get
 ANGELUS_FORCE_BUILD=1 mix compile -- SKIP_CSPICE=1
-mix test               # unit tests, all pass
+mix test test/unit     # unit tests, all pass
 ```
 
 `ANGELUS_FORCE_BUILD=1` makes `elixir_make` call the local Makefile instead of downloading a precompiled worker. `SKIP_CSPICE=1` then tells that Makefile to compile the stub worker.
@@ -82,12 +82,14 @@ just clean             # removes _build, native/spice_worker/build, and native/l
 just build             # re-downloads CSPICE + jsmn and recompiles
 ```
 
-### Run integration tests (requires kernel files)
+### Run e2e tests (requires CSPICE, kernel files, and Horizons fixture)
 
 ```bash
 just test-integration
 # or:
-mix test --include spice_integration
+just test-e2e
+# or:
+mix test test/e2e --include e2e
 ```
 
 ---

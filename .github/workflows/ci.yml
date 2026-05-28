@@ -79,4 +79,4 @@ jobs:
         run: mix dialyzer --format github
 
       - name: Test
-        run: mix test
+        run: mix test test/unit

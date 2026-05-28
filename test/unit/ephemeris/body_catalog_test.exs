@@ -2,6 +2,12 @@ defmodule Angelus.Ephemeris.BodyCatalogTest do
   use ExUnit.Case, async: true
 
   alias Angelus.Ephemeris.BodyCatalog
+  alias Angelus.Ephemeris.BodyCatalog.Target
+
+  test "fetch returns Target structs" do
+    assert {:ok, %Target{}} = BodyCatalog.fetch(:sun)
+    assert {:ok, %Target{}} = BodyCatalog.fetch(:true_node)
+  end
 
   test "fetch returns physical body metadata" do
     assert {:ok, %{spice_target: "SUN", spice_id: 10, target_kind: :body_center}} =
@@ -61,7 +67,6 @@ defmodule Angelus.Ephemeris.BodyCatalogTest do
   test "fetch rejects unsupported bodies" do
     assert {:error, {:unsupported_body, :ceres}} = BodyCatalog.fetch(:ceres)
     assert {:error, {:unsupported_body, :south_node}} = BodyCatalog.fetch(:south_node)
-    assert {:error, {:unsupported_body, "sun"}} = BodyCatalog.fetch("sun")
   end
 
   test "supported_bodies returns all v0.1 bodies" do

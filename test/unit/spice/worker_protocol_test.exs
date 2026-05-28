@@ -16,7 +16,7 @@ defmodule Angelus.Spice.WorkerProtocolTest do
   end
 
   test "encode_load_kernels includes paths list" do
-    paths = ["/a/latest_leapseconds.tls", "/a/de442.bsp"]
+    paths = ["/a/naif0012.tls", "/a/de442.bsp"]
     json = WorkerProtocol.encode_load_kernels(3, paths)
     assert {:ok, %{"id" => 3, "op" => "load_kernels", "paths" => ^paths}} = Jason.decode(json)
   end

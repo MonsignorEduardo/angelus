@@ -36,6 +36,7 @@ SRC_DIR      := $(WORKER_DIR)src
 BUILD_TARGET := $(if $(CC_PRECOMPILER_CURRENT_TARGET),$(CC_PRECOMPILER_CURRENT_TARGET),native)
 BUILD_DIR    := $(WORKER_DIR)build/$(BUILD_TARGET)
 FETCH_SCRIPT := $(WORKER_DIR)fetch-libs.sh
+MODE_STAMP   := $(BUILD_DIR)/.cspice-mode
 
 CSPICE_DIR ?= $(LIBS_DIR)/cspice/$(BUILD_TARGET)
 JSMN_DIR   := $(LIBS_DIR)/jsmn
@@ -53,12 +54,14 @@ ifndef SKIP_CSPICE
   # Link static archive directly — avoids -lcspice resolution issues on macOS
   LDFLAGS   += $(CSPICE_DIR)/lib/cspice.a -lm
   CSPICE_DEP := fetch-cspice
+  CSPICE_MODE := full
 else
   LDFLAGS    += -lm
   CSPICE_DEP :=
+  CSPICE_MODE := stub
 endif
 
-.PHONY: all fetch-cspice fetch-jsmn priv require-mix-app-path
+.PHONY: all fetch-cspice fetch-jsmn priv require-mix-app-path force
 
 all: require-mix-app-path $(CSPICE_DEP) fetch-jsmn priv $(TARGET)
 
@@ -84,6 +87,14 @@ $(TARGET): $(OBJECTS)
 	@mkdir -p $(PRIV_DIR)
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(SRC_DIR)/protocol.h $(SRC_DIR)/cspice_ops.h $(JSMN_H)
+$(MODE_STAMP): force
+	@mkdir -p $(BUILD_DIR)
+	@if [ ! -f $@ ] || [ "$$(cat $@)" != "$(CSPICE_MODE)" ]; then \
+	  printf '%s' "$(CSPICE_MODE)" > $@; \
+	fi
+
+force:
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(SRC_DIR)/protocol.h $(SRC_DIR)/cspice_ops.h $(JSMN_H) $(MODE_STAMP)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DJSMN_STATIC -I$(JSMN_DIR) -I$(SRC_DIR) -c $< -o $@

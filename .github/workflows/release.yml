@@ -106,8 +106,8 @@ jobs:
       - name: Get deps
         run: mix deps.get
 
-      - name: Integration tests (spice_integration)
-        run: mix test --include spice_integration
+      - name: E2E tests (CSPICE + Horizons)
+        run: mix test test/e2e --include e2e
 
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:

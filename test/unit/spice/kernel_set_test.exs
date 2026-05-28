@@ -4,7 +4,7 @@ defmodule Angelus.Spice.KernelSetTest do
   alias Angelus.Spice.KernelSet
 
   @required_files [
-    "latest_leapseconds.tls",
+    "naif0012.tls",
     "pck00011.tpc",
     "gm_de440.tpc",
     "de442.bsp",
@@ -17,6 +17,12 @@ defmodule Angelus.Spice.KernelSetTest do
     "nep105.bsp",
     "plu060.bsp"
   ]
+  @core_files [
+    "naif0012.tls",
+    "pck00011.tpc",
+    "gm_de440.tpc",
+    "de442.bsp"
+  ]
 
   # ── required_files / default_paths ──────────────────────────────────────
 
@@ -24,12 +30,20 @@ defmodule Angelus.Spice.KernelSetTest do
     assert KernelSet.required_files() == @required_files
   end
 
+  test "required_files returns the core v0.1 kernel list" do
+    assert KernelSet.required_files(:core) == @core_files
+  end
+
   test "default_paths joins base_path with each required file" do
     paths = KernelSet.default_paths("/base")
     assert length(paths) == length(@required_files)
-    assert "/base/latest_leapseconds.tls" in paths
+    assert "/base/naif0012.tls" in paths
     assert "/base/de442.bsp" in paths
     assert "/base/ura184_part-1.bsp" in paths
+  end
+
+  test "default_paths supports the core profile" do
+    assert KernelSet.default_paths("/base", :core) == Enum.map(@core_files, &"/base/#{&1}")
   end
 
   # ── validate whitelist ───────────────────────────────────────────────────
@@ -101,7 +115,15 @@ defmodule Angelus.Spice.KernelSetTest do
     meta = KernelSet.metadata(fake_paths())
     assert meta.ephemeris == :de442
     assert meta.kernel_policy == :default_modern
+    assert meta.profile == :full
     assert meta.public_range == %{from: ~D[1900-01-01], to: ~D[2100-01-24]}
+  end
+
+  test "metadata supports core profile" do
+    meta = KernelSet.metadata(fake_paths(:core))
+    assert meta.kernel_policy == :core
+    assert meta.profile == :core
+    assert Enum.map(meta.kernels, & &1.file) == @core_files
   end
 
   test "metadata kernels list has correct types" do
@@ -118,6 +140,10 @@ defmodule Angelus.Spice.KernelSetTest do
   # that don't reach the file-existence check.
   defp fake_paths(extra: extra),
     do: fake_paths() ++ ["/kernels/#{extra}"]
+
+  defp fake_paths(:core) do
+    Enum.map(@core_files, &"/kernels/#{&1}")
+  end
 
   defp fake_paths do
     Enum.map(@required_files, &"/kernels/#{&1}")
