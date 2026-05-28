@@ -6,10 +6,6 @@ help:
 build:
     ANGELUS_FORCE_BUILD=1 mix compile
 
-# Compile stub worker only (no CSPICE download, for fast local tests)
-build-stub:
-    ANGELUS_FORCE_BUILD=1 mix compile -- SKIP_CSPICE=1
-
 # Check Elixir formatting
 format-check:
     mix format --check-formatted
@@ -28,7 +24,7 @@ clean:
     rm -rf native/spice_worker/build
     rm -rf native/libs
 
-# Run unit tests (no CSPICE required)
+# Run unit tests
 test:
     mix test test/unit
 

@@ -73,7 +73,7 @@ end
 - For supported platforms, no local C compiler or CSPICE installation is required when installing from Hex.
 - Local source builds require a C compiler available as `cc`, plus `curl`, `jq`, `tar`, and either `sha256sum` or `shasum`.
 
-Precompiled CSPICE-enabled native workers are produced only for macOS Apple Silicon and Linux glibc x86_64.
+Precompiled CSPICE-enabled native workers are provided for macOS Apple Silicon (`aarch64-apple-darwin`) and Linux glibc x86_64 (`x86_64-linux-gnu`). CSPICE itself is not compiled from source — the precompiled `cspice.a` from the NAIF toolkit archive is downloaded and linked directly.
 
 ## Quick Start
 
@@ -204,12 +204,6 @@ By default, `mix compile` may use a published precompiled worker. To force a loc
 
 ```bash
 ANGELUS_FORCE_BUILD=1 mix compile
-```
-
-For a fast stub worker without CSPICE:
-
-```bash
-ANGELUS_FORCE_BUILD=1 mix compile -- SKIP_CSPICE=1
 ```
 
 If you have `just` installed, the repository also provides:

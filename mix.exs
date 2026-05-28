@@ -61,7 +61,10 @@ defmodule Angelus.MixProject do
           "aarch64-apple-darwin" =>
             {"gcc", "g++", "<%= cc %> -arch arm64", "<%= cxx %> -arch arm64"}
         },
-        {:unix, :linux} => %{"x86_64-linux-gnu" => "x86_64-linux-gnu-"}
+        {:unix, :linux} => %{
+          "x86_64-linux-gnu"  => "x86_64-linux-gnu-",
+          "aarch64-linux-gnu" => "aarch64-linux-gnu-"
+        }
       }
     ]
   end

@@ -81,7 +81,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq
+          sudo apt-get install -y build-essential curl jq meson ninja-build
 
       - name: Cache deps
         uses: actions/cache@v5
@@ -174,7 +174,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq
+          sudo apt-get install -y build-essential curl jq meson ninja-build
 
       - name: Cache native/libs (CSPICE + jsmn)
         uses: actions/cache@v5
@@ -202,10 +202,59 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           files: _build/precompiled/*.tar.gz
 
+  # ── Linux (aarch64-linux-gnu) ─────────────────────────────────────────────
+  precompile-linux-arm64:
+    name: Precompile / aarch64-linux-gnu
+    needs: [integration-tests, ci]
+    runs-on: ubuntu-24.04-arm
+    env:
+      MIX_ENV: prod
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential curl jq meson ninja-build
+
+      - name: Cache native/libs (CSPICE sources + jsmn)
+        uses: actions/cache@v5
+        with:
+          path: native/libs
+          key: native-libs-aarch64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+
+      - name: Get Elixir deps
+        run: mix deps.get
+
+      - name: Precompile
+        env:
+          ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/_build/precompiled
+          CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
+          TARGET_ARCH: aarch64
+          TARGET_OS: linux
+          TARGET_ABI: gnu
+        run: |
+          mkdir -p _build/precompiled
+          mix elixir_make.precompile
+
+      - name: Upload artefacts
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: _build/precompiled/*.tar.gz
+
   # ── Generate checksum file ────────────────────────────────────────────────
   checksum:
     name: Generate checksum
-    needs: [precompile-macos, precompile-linux]
+    needs: [precompile-macos, precompile-linux, precompile-linux-arm64]
     runs-on: ubuntu-24.04
     env:
       MIX_ENV: prod

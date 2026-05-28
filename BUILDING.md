@@ -33,8 +33,6 @@ No C compiler or CSPICE installation is needed.
 | Linux glibc x86_64    | `x86_64-linux-gnu`       |
 
 Only the targets listed here receive released, CSPICE-enabled precompiled workers.
-Platforms not listed here, including Linux ARM64, are not supported by the bundled
-CSPICE build.
 
 ---
 
@@ -43,6 +41,7 @@ CSPICE build.
 ### Prerequisites
 
 - C compiler (`cc` / `gcc` / `clang`)
+- `meson` and `ninja` — build system (`brew install meson` / `apt install meson ninja-build`)
 - `curl`, `tar` — for downloading CSPICE and jsmn
 - `jq` — for parsing `native_sources.lock` (`brew install jq` / `apt install jq`)
 - `just` — optional but recommended (`brew install just` / `cargo install just`)
@@ -61,19 +60,9 @@ just test-integration  # build + mix test test/e2e --include e2e
 ```bash
 mix deps.get
 ANGELUS_FORCE_BUILD=1 mix compile
-# The Makefile auto-downloads CSPICE N0067 to native/libs/cspice/
-# and jsmn to native/libs/jsmn/ on first run.
+# The build system auto-downloads CSPICE N0067 to native/libs/spice/
+# and jsmn to native/libs/jsmn/ on first run, then links spice_worker via Meson.
 ```
-
-### Stub build (no CSPICE — unit tests only)
-
-```bash
-mix deps.get
-ANGELUS_FORCE_BUILD=1 mix compile -- SKIP_CSPICE=1
-mix test test/unit     # unit tests, all pass
-```
-
-`ANGELUS_FORCE_BUILD=1` makes `elixir_make` call the local Makefile instead of downloading a precompiled worker. `SKIP_CSPICE=1` then tells that Makefile to compile the stub worker.
 
 ### Re-downloading native libs
 
@@ -99,13 +88,12 @@ mix test test/e2e --include e2e
 ### How it works
 
 The pull request CI workflow (`.github/workflows/ci.yml`) runs on
-`ubuntu-24.04` with `ANGELUS_FORCE_BUILD=1` and `SKIP_CSPICE=1`, so it builds
-the stub worker and does not download or build CSPICE. It checks formatting,
-compiles, then runs Credo, Dialyzer, and tests.
+`ubuntu-24.04` with `ANGELUS_FORCE_BUILD=1`, building with full CSPICE support.
+It checks formatting, compiles, then runs Credo, Dialyzer, and tests.
 
 The release workflow (`.github/workflows/release.yml`) triggers on `v*` tags and
 manual dispatch. It validates the release tag, runs the same CI, runs integration
-tests on `ubuntu-24.04`, then builds CSPICE-enabled release artefacts only for
+tests on `ubuntu-24.04`, then builds CSPICE-enabled release artefacts for
 macOS Apple Silicon and Linux glibc x86_64:
 
 1. **`precompile-macos`** — runs on `macos-14` (M1), caches `native/libs/` keyed on
@@ -115,7 +103,8 @@ macOS Apple Silicon and Linux glibc x86_64:
    generates `checksum.exs`, and uploads it to the same release.
 4. **`publish`** — downloads the generated checksum and publishes the package to Hex.pm.
 
-The Makefile handles CSPICE download in CI exactly as it does locally. The workflow only selects the target and output directory.
+Both precompile jobs download the NAIF CSPICE archive and link against the precompiled
+`cspice.a` it ships. No from-source compilation of CSPICE occurs.
 
 ### Releasing a new version
 

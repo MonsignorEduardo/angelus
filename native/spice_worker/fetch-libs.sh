@@ -6,6 +6,11 @@
 #   ./fetch-libs.sh jsmn   <dest_dir>
 #
 # Requires: curl, tar, jq
+#
+# The precompiled cspice.a shipped inside the NAIF archive is extracted to
+# lib/cspice.a.  Meson links against it directly — no from-source compilation.
+#
+# Supported targets: aarch64-apple-darwin, x86_64-linux-gnu.
 
 set -eu
 
@@ -28,7 +33,8 @@ sha256() {
 fetch_cspice() {
   DEST="$1"
 
-  if [ -d "$DEST/include" ] && [ -f "$DEST/lib/cspice.a" ]; then
+  # Already present when include/, src/cspice/, and lib/cspice.a all exist.
+  if [ -d "$DEST/include" ] && [ -d "$DEST/src/cspice" ] && [ -f "$DEST/lib/cspice.a" ]; then
     echo "CSPICE already present at $DEST - skipping."
     return
   fi
@@ -41,9 +47,9 @@ fetch_cspice() {
 
   if [ -z "$TARGET" ]; then
     case "$(uname -s)/$(uname -m)" in
-      Darwin/arm64) TARGET="aarch64-apple-darwin" ;;
-      Linux/x86_64) TARGET="x86_64-linux-gnu" ;;
-      *) die "unsupported platform $(uname -s)/$(uname -m) - supported: aarch64-apple-darwin, x86_64-linux-gnu" ;;
+      Darwin/arm64)  TARGET="aarch64-apple-darwin" ;;
+      Linux/x86_64)  TARGET="x86_64-linux-gnu"     ;;
+      *) die "unsupported platform $(uname -s)/$(uname -m) — set CC_PRECOMPILER_CURRENT_TARGET explicitly" ;;
     esac
   fi
 
@@ -57,7 +63,7 @@ fetch_cspice() {
       EXPECTED="$( jq -r '.cspice.sha256_linux_x86_64' "$LOCK")"
       ;;
     *)
-      die "unsupported target $TARGET - supported: aarch64-apple-darwin, x86_64-linux-gnu"
+      die "unsupported target '$TARGET' — supported: aarch64-apple-darwin, x86_64-linux-gnu"
       ;;
   esac
 
@@ -76,8 +82,13 @@ fetch_cspice() {
   echo "Extracting to $DEST ..."
   mkdir -p /tmp/cspice_extract "$DEST"
   tar -xf /tmp/cspice.tar.Z -C /tmp/cspice_extract
+
   cp -r /tmp/cspice_extract/cspice/include "$DEST/include"
-  cp -r /tmp/cspice_extract/cspice/lib "$DEST/lib"
+  cp -r /tmp/cspice_extract/cspice/src     "$DEST/src"
+
+  mkdir -p "$DEST/lib"
+  cp /tmp/cspice_extract/cspice/lib/cspice.a "$DEST/lib/cspice.a"
+  echo "Precompiled cspice.a installed to $DEST/lib/cspice.a."
 
   rm -rf /tmp/cspice_extract /tmp/cspice.tar.Z
   echo "CSPICE installed to $DEST."
