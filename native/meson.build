@@ -28,10 +28,11 @@ native_dir = meson.current_source_dir()
 mix_app_path = run_command('sh', '-c', 'printf "%s" "$MIX_APP_PATH"', check: true).stdout()
 
 # ── CSPICE: built from source via wrap subproject ─────────────────────────
-cspice_dep = dependency('cspice', fallback: ['cspice', 'cspice_dep'])
+# static: true ensures spice_worker links the .a even when the .so is also built/installed.
+cspice_dep = dependency('cspice', static: true, fallback: ['cspice', 'cspice_dep'])
 
 # ── ERFA: built from source via wrap subproject ───────────────────────────
-erfa_dep = dependency('erfa', fallback: ['erfa', 'erfa_dep'])
+erfa_dep = dependency('erfa', static: true, fallback: ['erfa', 'erfa_dep'])
 
 # ── cJSON: system dependency via pkg-config ───────────────────────────────
 cjson_dep = dependency('libcjson')
