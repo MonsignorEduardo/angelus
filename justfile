@@ -21,8 +21,8 @@ dialyzer:
 # Remove compiled worker and downloaded native libs
 clean:
     rm -rf _build
-    rm -rf native/spice_worker/build
-    rm -rf native/libs
+    rm -rf native/build
+    rm -rf native/lib
 
 # Run unit tests
 test:
