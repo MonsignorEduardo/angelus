@@ -45,6 +45,10 @@ angelus-*.tar
 # Native C dependencies (downloaded at build time)
 native/libs/
 
+# Meson build dirs and wrap checkouts
+native/build/
+native/subprojects/cspice/
+
 # Native build objects
 native/spice_worker/build/
 
