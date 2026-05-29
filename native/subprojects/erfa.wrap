@@ -1,7 +1,7 @@
 [wrap-git]
 url      = https://github.com/MonsignorEduardo/erfa.git
 revision = master
-commit   = 801ee88ea180efbb2b6712f772ac9c4787678988
+commit   = 88fbf9efebe0e5680450e0402bc8df447b743875
 depth    = 1
 
 [provide]
