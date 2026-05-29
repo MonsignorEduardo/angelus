@@ -1,0 +1,8 @@
+[wrap-git]
+url      = https://github.com/MonsignorEduardo/cspice.git
+revision = N0067
+commit  = 90e2ea8e1beb5423c79ca4a6e5c7af2340af675a
+depth    = 1
+
+[provide]
+cspice = cspice_dep
