@@ -149,6 +149,41 @@ defmodule Angelus.Spice do
   @spec metadata() :: {:ok, map() | nil}
   def metadata, do: Server.metadata()
 
+  @doc """
+  Computes the ecliptic longitude of the Moon's ascending node using ERFA
+  (IAU SOFA algorithms). Does not require planetary kernels beyond the
+  mandatory leap-second (LSK) and Earth orientation (PCK) kernels.
+
+  `calculation` must be one of:
+    * `:mean_lunar_node` — IAU IERS 2003 polynomial (eraFaom03). Fast,
+      smooth, no periodic terms.
+    * `:true_lunar_node` — mean node corrected with IAU 2006/2000A nutation
+      in longitude (eraNut06a + eraObl06). Matches the "True Ascending Node"
+      in astrology software and JPL Horizons.
+
+  `et` is ephemeris time in seconds past J2000 as returned by `utc_to_et/1`.
+  Requires kernels to be loaded (at minimum the leap-second kernel).
+
+  ## Returns
+
+    * `{:ok, map()}` — result map with `:ecliptic_longitude` in degrees
+      [0, 360), `:ecliptic_latitude` = 0.0, `:distance_au` = 0.0, and the
+      same coordinate keys as a standard state result.
+    * `{:error, :invalid_et}` when `et` is not a number.
+    * `{:error, :kernels_not_loaded}` if no kernels have been loaded.
+    * `{:error, {:unsupported_calculation, atom()}}` for unknown calculation types.
+  """
+  @spec lunar_node(:mean_lunar_node | :true_lunar_node, float()) ::
+          {:ok, map()} | {:error, term()}
+  def lunar_node(calculation, et)
+      when calculation in [:mean_lunar_node, :true_lunar_node] and is_number(et),
+      do: Server.lunar_node(calculation, et * 1.0)
+
+  def lunar_node(_calculation, et) when is_number(et),
+    do: {:error, {:unsupported_calculation, :unknown}}
+
+  def lunar_node(_calculation, _et), do: {:error, :invalid_et}
+
   defp load_default_kernels(opts) do
     base_path = Keyword.get(opts, :base_path, Path.join([File.cwd!(), "priv", "kernels"]))
     profile = Keyword.get(opts, :profile, :full)

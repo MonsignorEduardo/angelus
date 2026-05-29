@@ -21,7 +21,7 @@ defmodule Angelus.MixProject do
       make_precompiler_filename: "spice_worker",
       make_precompiler_priv_paths: @priv_paths,
       cc_precompiler: cc_precompiler(),
-      make_cwd: "native/spice_worker",
+      make_cwd: "native",
       make_force_build: System.get_env("ANGELUS_FORCE_BUILD") == "1",
       dialyzer: dialyzer(),
       description: description(),
@@ -62,7 +62,7 @@ defmodule Angelus.MixProject do
             {"gcc", "g++", "<%= cc %> -arch arm64", "<%= cxx %> -arch arm64"}
         },
         {:unix, :linux} => %{
-          "x86_64-linux-gnu"  => "x86_64-linux-gnu-",
+          "x86_64-linux-gnu" => "x86_64-linux-gnu-",
           "aarch64-linux-gnu" => "aarch64-linux-gnu-"
         }
       }
@@ -83,10 +83,12 @@ defmodule Angelus.MixProject do
       links: %{"GitHub" => @source_url},
       files: [
         "lib",
-        "native/spice_worker/Makefile",
-        "native/spice_worker/fetch-libs.sh",
-        "native/spice_worker/patches",
-        "native/spice_worker/src",
+        "native/Makefile",
+        "native/fetch-libs.sh",
+        "native/meson.build",
+        "native/patches",
+        "native/src",
+        "native/native_sources.lock",
         "priv/.gitkeep",
         "checksum.exs",
         "mix.exs",

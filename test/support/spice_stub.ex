@@ -23,6 +23,7 @@ defmodule Angelus.SpiceStub do
   # Canned ET values keyed by datetime
   @et_map %{
     ~U[1990-05-24 06:30:00Z] => -302_378_400.0,
+    ~U[2000-01-01 12:00:00Z] => 0.0,
     ~U[2026-01-01 00:00:00Z] => 820_454_469.184,
     ~U[1900-06-01 00:00:00Z] => -3_155_630_400.0
   }
@@ -61,6 +62,35 @@ defmodule Angelus.SpiceStub do
       ecliptic_longitude: 102.1,
       ecliptic_latitude: 0.9,
       distance_au: 4.98
+    },
+    # Lunar node stubs at J2000.0 (ET = 0.0).
+    # Mean node: eraFaom03(0) = 450160.398036 arcsec in (0, 1296000]
+    # => 125.04455 degrees.
+    # True node: mean node + nutation correction ≈ 125.08 degrees.
+    # These values are rounded to the nearest 0.01° for stub purposes.
+    {:mean_node, 0.0} => %{
+      spice_target: nil,
+      spice_id: nil,
+      target_kind: :lunar_node,
+      calculation: :mean_lunar_node,
+      position_km: {0.0, 0.0, 0.0},
+      velocity_km_s: {0.0, 0.0, 0.0},
+      light_time_seconds: 0.0,
+      ecliptic_longitude: 125.04,
+      ecliptic_latitude: 0.0,
+      distance_au: 0.0
+    },
+    {:true_node, 0.0} => %{
+      spice_target: nil,
+      spice_id: nil,
+      target_kind: :lunar_node,
+      calculation: :true_lunar_node,
+      position_km: {0.0, 0.0, 0.0},
+      velocity_km_s: {0.0, 0.0, 0.0},
+      light_time_seconds: 0.0,
+      ecliptic_longitude: 125.08,
+      ecliptic_latitude: 0.0,
+      distance_au: 0.0
     }
   }
 

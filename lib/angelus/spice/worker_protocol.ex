@@ -68,6 +68,24 @@ defmodule Angelus.Spice.WorkerProtocol do
           "abcorr" => "LT+S"
         })
 
+  @doc """
+  Encodes a lunar_node request.
+
+  `calculation` must be one of:
+    - `:mean_lunar_node` — IAU 2003 polynomial (eraFaom03)
+    - `:true_lunar_node` — mean node corrected with IAU 2006/2000A nutation
+  """
+  @spec encode_lunar_node(request_id(), :mean_lunar_node | :true_lunar_node, float()) :: binary()
+  def encode_lunar_node(id, calculation, et)
+      when calculation in [:mean_lunar_node, :true_lunar_node] and is_float(et),
+      do:
+        Jason.encode!(%{
+          "id" => id,
+          "op" => "lunar_node",
+          "calculation" => Atom.to_string(calculation),
+          "et" => et
+        })
+
   # ── Decoding ────────────────────────────────────────────────────────────
 
   @doc """

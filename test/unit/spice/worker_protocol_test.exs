@@ -40,6 +40,24 @@ defmodule Angelus.Spice.WorkerProtocolTest do
     assert decoded["et"] == -302_378_400.0
   end
 
+  test "encode_lunar_node encodes mean_lunar_node correctly" do
+    json = WorkerProtocol.encode_lunar_node(6, :mean_lunar_node, 0.0)
+    assert {:ok, decoded} = Jason.decode(json)
+    assert decoded["id"] == 6
+    assert decoded["op"] == "lunar_node"
+    assert decoded["calculation"] == "mean_lunar_node"
+    assert decoded["et"] == 0.0
+  end
+
+  test "encode_lunar_node encodes true_lunar_node correctly" do
+    json = WorkerProtocol.encode_lunar_node(7, :true_lunar_node, -302_378_400.0)
+    assert {:ok, decoded} = Jason.decode(json)
+    assert decoded["id"] == 7
+    assert decoded["op"] == "lunar_node"
+    assert decoded["calculation"] == "true_lunar_node"
+    assert decoded["et"] == -302_378_400.0
+  end
+
   # ── Decoding ────────────────────────────────────────────────────────────
 
   test "decode returns ok tuple on success response" do
