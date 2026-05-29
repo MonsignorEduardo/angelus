@@ -61,8 +61,8 @@ jobs:
     with:
       ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-  integration-tests:
-    name: Integration tests
+  e2e-tests:
+    name: E2E tests
     needs: validate-release-ref
     runs-on: ubuntu-24.04
     env:
@@ -81,7 +81,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq meson ninja-build
+          sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
       - name: Cache deps
         uses: actions/cache@v5
@@ -97,11 +97,11 @@ jobs:
           key: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
 
-      - name: Cache native/libs (CSPICE + jsmn)
+      - name: Cache cspice subproject
         uses: actions/cache@v5
         with:
-          path: native/libs
-          key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+          path: native/subprojects/cspice
+          key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Get deps
         run: mix deps.get
@@ -112,7 +112,7 @@ jobs:
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
-    needs: [integration-tests, ci]
+    needs: [e2e-tests, ci]
     runs-on: macos-14
     env:
       MIX_ENV: prod
@@ -127,11 +127,14 @@ jobs:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - name: Cache native/libs (CSPICE + jsmn)
+      - name: Install build dependencies
+        run: brew install cjson meson ninja
+
+      - name: Cache cspice subproject
         uses: actions/cache@v5
         with:
-          path: native/libs
-          key: native-libs-aarch64-apple-darwin-${{ hashFiles('native/native_sources.lock') }}
+          path: native/subprojects/cspice
+          key: cspice-aarch64-apple-darwin-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Get Elixir deps
         run: mix deps.get
@@ -156,7 +159,7 @@ jobs:
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
-    needs: [integration-tests, ci]
+    needs: [e2e-tests, ci]
     runs-on: ubuntu-24.04
     env:
       MIX_ENV: prod
@@ -174,13 +177,13 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq meson ninja-build
+          sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
-      - name: Cache native/libs (CSPICE + jsmn)
+      - name: Cache cspice subproject
         uses: actions/cache@v5
         with:
-          path: native/libs
-          key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+          path: native/subprojects/cspice
+          key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Get Elixir deps
         run: mix deps.get
@@ -205,7 +208,7 @@ jobs:
   # ── Linux (aarch64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux-arm64:
     name: Precompile / aarch64-linux-gnu
-    needs: [integration-tests, ci]
+    needs: [e2e-tests, ci]
     runs-on: ubuntu-24.04-arm
     env:
       MIX_ENV: prod
@@ -223,13 +226,13 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq meson ninja-build
+          sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
-      - name: Cache native/libs (CSPICE sources + jsmn)
+      - name: Cache cspice subproject
         uses: actions/cache@v5
         with:
-          path: native/libs
-          key: native-libs-aarch64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+          path: native/subprojects/cspice
+          key: cspice-aarch64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Get Elixir deps
         run: mix deps.get

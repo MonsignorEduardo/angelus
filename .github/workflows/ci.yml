@@ -33,7 +33,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq meson ninja-build
+          sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
       - name: Cache deps
         uses: actions/cache@v5
@@ -49,11 +49,11 @@ jobs:
           key: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
 
-      - name: Cache native/libs (CSPICE + jsmn)
+      - name: Cache cspice subproject
         uses: actions/cache@v5
         with:
-          path: native/libs
-          key: native-libs-x86_64-linux-gnu-${{ hashFiles('native/native_sources.lock') }}
+          path: native/subprojects/cspice
+          key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Cache PLT (Dialyzer)
         uses: actions/cache@v5
