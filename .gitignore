@@ -48,6 +48,7 @@ native/libs/
 # Meson build dirs and wrap checkouts
 native/build/
 native/subprojects/cspice/
+native/subprojects/erfa/
 
 # Native build objects
 native/spice_worker/build/

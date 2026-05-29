@@ -1,0 +1,11 @@
+[wrap-git]
+url      = https://github.com/MonsignorEduardo/erfa.git
+revision = master
+commit   = 11f476cdd66f24f6ebf0d5781a5c582669dcdc8f
+depth    = 1
+
+[provide]
+erfa = erfa_dep
+
+[wrap-options]
+default_library = static

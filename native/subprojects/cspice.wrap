@@ -6,3 +6,6 @@ depth    = 1
 
 [provide]
 cspice = cspice_dep
+
+[wrap-options]
+default_library = static
