@@ -2,7 +2,7 @@
 help:
     @just --list
 
-# Download CSPICE + jsmn and compile spice_worker into _build/*/lib/angelus/priv
+# Download CSPICE + jsmn and compile angelus_worker into _build/*/lib/angelus/priv
 build:
     ANGELUS_FORCE_BUILD=1 mix compile
 

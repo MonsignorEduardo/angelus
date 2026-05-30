@@ -84,7 +84,7 @@ mix deps.get
 mix compile
 ```
 
-When installed from Hex on one of those supported platforms, compilation downloads the matching precompiled `spice_worker`. Local development in this repository can force a source build with `ANGELUS_FORCE_BUILD=1` or `just build`.
+When installed from Hex on one of those supported platforms, compilation downloads the matching precompiled `angelus_worker`. Local development in this repository can force a source build with `ANGELUS_FORCE_BUILD=1` or `just build`.
 
 Download the default v0.1 kernel set:
 
@@ -168,7 +168,7 @@ Angelus.load_kernels([
 ```
 
 Explicit paths must form either the core or full supported v0.1 kernel set. See
-`Angelus.Spice.default_kernel_files/0` for the default full filenames.
+`Angelus.CPort.default_kernel_files/0` for the default full filenames.
 
 ## Return Values
 
@@ -217,7 +217,7 @@ just test-e2e          # alias for test-integration
 just clean             # remove local build outputs and downloaded native libraries
 ```
 
-Unit tests live under `test/unit` and run without CSPICE by using validation-only paths or `Angelus.SpiceStub`. E2e tests live under `test/e2e` and require the real CSPICE worker, downloaded kernels, and a real JPL Horizons fixture at `test/fixtures/horizons/de442_positions.json`.
+Unit tests live under `test/unit` and run without CSPICE by using validation-only paths or `Angelus.CPortStub`. E2e tests live under `test/e2e` and require the real CSPICE worker, downloaded kernels, and a real JPL Horizons fixture at `test/fixtures/horizons/de442_positions.json`.
 
 ## Kernel and Data Licensing
 

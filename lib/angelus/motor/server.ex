@@ -1,12 +1,12 @@
-defmodule Angelus.Spice.Server do
-  @moduledoc "GenServer that owns the native `spice_worker` Port and serializes SPICE calls."
+defmodule Angelus.Motor.Server do
+  @moduledoc "GenServer that owns the native `angelus_motor` Port and serializes SPICE calls."
 
   use GenServer
 
-  alias Angelus.Spice.KernelSet
-  alias Angelus.Spice.WorkerProtocol
+  alias Angelus.Motor.KernelSet
+  alias Angelus.Motor.WorkerProtocol
 
-  @worker_bin "spice_worker"
+  @worker_bin "angelus_worker"
 
   # ── GenServer ────────────────────────────────────────────────────────────
 
@@ -157,7 +157,7 @@ defmodule Angelus.Spice.Server do
 
   # ── Public API ───────────────────────────────────────────────────────────
 
-  @doc "Starts the named SPICE server process."
+  @doc "Starts the named Motor server process."
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
@@ -323,7 +323,7 @@ defmodule Angelus.Spice.Server do
     if Process.whereis(__MODULE__) do
       GenServer.call(__MODULE__, message, 30_000)
     else
-      {:error, :spice_server_not_started}
+      {:error, :motor_server_not_started}
     end
   end
 end

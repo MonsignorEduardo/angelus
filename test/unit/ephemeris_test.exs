@@ -1,7 +1,7 @@
 defmodule Angelus.EphemerisTest do
   use ExUnit.Case, async: false
 
-  @spice_mock Angelus.SpiceStub
+  @spice_mock Angelus.CPortStub
 
   test "position accepts only an atom body" do
     assert Angelus.Ephemeris.position([:sun], ~U[1990-05-24 06:30:00Z], adapter: @spice_mock) ==

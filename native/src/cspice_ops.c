@@ -1,5 +1,5 @@
 /*
- * cspice_ops.c — CSPICE operation implementations for spice_worker.
+ * cspice_ops.c — CSPICE operation implementations for angelus_worker.
  */
 
 #include "cspice_ops.h"

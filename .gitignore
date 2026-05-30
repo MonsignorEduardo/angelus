@@ -51,8 +51,8 @@ native/subprojects/cspice/
 native/subprojects/erfa/
 
 # Native build objects
-native/spice_worker/build/
+native/angelus_worker/build/
 
-# Compiled spice_worker binary (managed by elixir_make)
-/priv/spice_worker
+# Compiled angelus_worker binary (managed by elixir_make)
+/priv/angelus_worker
 /priv/plts/

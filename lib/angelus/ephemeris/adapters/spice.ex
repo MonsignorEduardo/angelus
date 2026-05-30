@@ -5,10 +5,10 @@ defmodule Angelus.Ephemeris.Adapters.Spice do
 
   alias Angelus.Ephemeris.BodyCatalog
 
-  @doc "Converts UTC datetime to SPICE ephemeris time through `Angelus.Spice`."
+  @doc "Converts UTC datetime to SPICE ephemeris time through `Angelus.Motor`."
   @impl true
   @spec utc_to_et(DateTime.t()) :: {:ok, float()} | {:error, term()}
-  def utc_to_et(%DateTime{} = datetime), do: Angelus.Spice.utc_to_et(datetime)
+  def utc_to_et(%DateTime{} = datetime), do: Angelus.Motor.utc_to_et(datetime)
 
   @doc "Returns SPICE-backed state data for a public ephemeris body atom."
   @impl true
@@ -22,14 +22,14 @@ defmodule Angelus.Ephemeris.Adapters.Spice do
   # ── Dispatch by target kind ──────────────────────────────────────────────
 
   defp dispatch_state(body, %{target_kind: :lunar_node, calculation: calculation} = target, et) do
-    with {:ok, state} <- Angelus.Spice.lunar_node(calculation, et) do
+      with {:ok, state} <- Angelus.Motor.lunar_node(calculation, et) do
       {:ok, Map.merge(state, node_metadata(body, target))}
     end
   end
 
   defp dispatch_state(body, %{spice_target: spice_target} = target, et)
        when is_binary(spice_target) do
-    with {:ok, state} <- Angelus.Spice.state(spice_target, et) do
+      with {:ok, state} <- Angelus.Motor.state(spice_target, et) do
       {:ok, Map.merge(state, state_metadata(body, target))}
     end
   end

@@ -1,7 +1,7 @@
-defmodule Angelus.Spice.KernelSetTest do
+defmodule Angelus.CPort.KernelSetTest do
   use ExUnit.Case, async: true
 
-  alias Angelus.Spice.KernelSet
+  alias Angelus.CPort.KernelSet
 
   @required_files [
     "naif0012.tls",

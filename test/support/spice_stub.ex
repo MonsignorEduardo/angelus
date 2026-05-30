@@ -1,11 +1,11 @@
-defmodule Angelus.SpiceStub do
+defmodule Angelus.CPortStub do
   @moduledoc """
   Stub adapter for `Angelus.Ephemeris` tests that do not require a compiled
-  `priv/spice_worker` binary or downloaded kernels.
+  `priv/angelus_worker` binary or downloaded kernels.
 
   Usage in tests:
 
-      Angelus.Ephemeris.positions([:sun], datetime, adapter: Angelus.SpiceStub)
+      Angelus.Ephemeris.positions([:sun], datetime, adapter: Angelus.CPortStub)
 
   The stub returns synthetic but structurally valid responses using canned
   data keyed by `{body, datetime}`.  Any unknown combination returns an error.

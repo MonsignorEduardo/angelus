@@ -19,9 +19,9 @@ Add `angelus` to `mix.exs`:
 When `mix deps.compile` runs on a supported release target, `elixir_make` will:
 
 1. Detect your platform (`aarch64-apple-darwin` or `x86_64-linux-gnu`)
-2. Download the precompiled `spice_worker` binary from GitHub Releases
+2. Download the precompiled `angelus_worker` binary from GitHub Releases
 3. Verify its SHA-256 checksum against `checksum.exs`
-4. Install it to the compiled app's `priv/spice_worker`
+4. Install it to the compiled app's `priv/angelus_worker`
 
 No C compiler or CSPICE installation is needed.
 
@@ -50,7 +50,7 @@ Only the targets listed here receive released, CSPICE-enabled precompiled worker
 
 ```bash
 mix deps.get
-just build             # ANGELUS_FORCE_BUILD=1; downloads CSPICE + jsmn and compiles spice_worker
+just build             # ANGELUS_FORCE_BUILD=1; downloads CSPICE + jsmn and compiles angelus_worker
 just test              # unit tests (no CSPICE required at test time)
 just test-integration  # build + mix test test/e2e --include e2e
 ```
@@ -61,13 +61,13 @@ just test-integration  # build + mix test test/e2e --include e2e
 mix deps.get
 ANGELUS_FORCE_BUILD=1 mix compile
 # The build system auto-downloads CSPICE N0067 to native/libs/spice/
-# and jsmn to native/libs/jsmn/ on first run, then links spice_worker via Meson.
+# and jsmn to native/libs/jsmn/ on first run, then links angelus_worker via Meson.
 ```
 
 ### Re-downloading native libs
 
 ```bash
-just clean             # removes _build, native/spice_worker/build, and native/libs
+just clean             # removes _build, native/angelus_worker/build, and native/libs
 just build             # re-downloads CSPICE + jsmn and recompiles
 ```
 
@@ -133,8 +133,8 @@ angelus-port-aarch64-apple-darwin-0.1.0.tar.gz
 angelus-port-x86_64-linux-gnu-0.1.0.tar.gz
 ```
 
-Each tarball contains only `priv/spice_worker`, as configured by
-`make_precompiler_priv_paths: ["spice_worker"]` in `mix.exs`.
+Each tarball contains only `priv/angelus_worker`, as configured by
+`make_precompiler_priv_paths: ["angelus_worker"]` in `mix.exs`.
 
 ### Kernel data files
 

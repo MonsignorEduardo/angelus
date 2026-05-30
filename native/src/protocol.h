@@ -1,5 +1,5 @@
 /*
- * protocol.h — length-prefixed JSON protocol for spice_worker <-> Elixir Port (packet:4).
+ * protocol.h — length-prefixed JSON protocol for angelus_worker <-> Elixir Port (packet:4).
  *
  * Frame format (big-endian):
  *   [4 bytes: uint32 length][length bytes: UTF-8 JSON]

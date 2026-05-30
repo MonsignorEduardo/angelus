@@ -4,7 +4,7 @@ defmodule Angelus.MixProject do
   @app :angelus
   @version "0.0.2"
   @source_url "https://github.com/MonsignorEduardo/angelus"
-  @priv_paths ["spice_worker"]
+  @priv_paths ["angelus_worker"]
 
   def project do
     [
@@ -18,7 +18,7 @@ defmodule Angelus.MixProject do
       deps: deps(),
       make_precompiler: {:port, CCPrecompiler},
       make_precompiler_url: "#{@source_url}/releases/download/v#{@version}/@{artefact_filename}",
-      make_precompiler_filename: "spice_worker",
+      make_precompiler_filename: "angelus_worker",
       make_precompiler_priv_paths: @priv_paths,
       cc_precompiler: cc_precompiler(),
       make_cwd: "native",

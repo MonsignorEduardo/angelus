@@ -1,8 +1,8 @@
-defmodule Angelus.Spice do
+defmodule Angelus.Motor do
   @moduledoc "Public SPICE facade with v0.1 kernel policy validation."
 
-  alias Angelus.Spice.KernelSet
-  alias Angelus.Spice.Server
+  alias Angelus.Motor.KernelSet
+  alias Angelus.Motor.Server
 
   @doc """
   Returns the list of kernel filenames required by the default v0.1 kernel set.

@@ -1,4 +1,4 @@
-defmodule Angelus.Spice.KernelSet do
+defmodule Angelus.Motor.KernelSet do
   @moduledoc "Validation and metadata for the v0.1 JPL/NAIF kernel set."
 
   @lsk "naif0012.tls"

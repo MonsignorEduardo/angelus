@@ -1,5 +1,5 @@
 /*
- * main.c — spice_worker entry point.
+ * main.c — angelus_worker entry point.
  *
  * Reads length-prefixed JSON requests from stdin (packet:4 protocol),
  * dispatches to CSPICE operations and writes JSON responses to stdout.
@@ -94,9 +94,9 @@ static int send_error(int id, const char *reason) {
  * physical bodies.
  */
 static int send_ok_lunar_node(int id, double ecliptic_longitude, double et) {
-  cJSON *root   = cJSON_CreateObject();
+  cJSON *root = cJSON_CreateObject();
   cJSON *result = cJSON_AddObjectToObject(root, "result");
-  cJSON *state  = cJSON_AddArrayToObject(result, "state_km");
+  cJSON *state = cJSON_AddArrayToObject(result, "state_km");
 
   cJSON_AddNumberToObject(root, "id", id);
   cJSON_AddTrueToObject(root, "ok");
@@ -104,11 +104,11 @@ static int send_ok_lunar_node(int id, double ecliptic_longitude, double et) {
   for (int i = 0; i < 6; i++)
     cJSON_AddItemToArray(state, cJSON_CreateNumber(0.0));
 
-  cJSON_AddNumberToObject(result, "distance_au",         0.0);
-  cJSON_AddNumberToObject(result, "ecliptic_longitude",  ecliptic_longitude);
-  cJSON_AddNumberToObject(result, "ecliptic_latitude",   0.0);
-  cJSON_AddNumberToObject(result, "light_time_seconds",  0.0);
-  cJSON_AddNumberToObject(result, "et",                  et);
+  cJSON_AddNumberToObject(result, "distance_au", 0.0);
+  cJSON_AddNumberToObject(result, "ecliptic_longitude", ecliptic_longitude);
+  cJSON_AddNumberToObject(result, "ecliptic_latitude", 0.0);
+  cJSON_AddNumberToObject(result, "light_time_seconds", 0.0);
+  cJSON_AddNumberToObject(result, "et", et);
 
   return send_json(root);
 }
@@ -229,9 +229,10 @@ static void dispatch(const char *json) {
     /* ── lunar_node ── */
   } else if (strcmp(op, "lunar_node") == 0) {
     cJSON *calc_item = cJSON_GetObjectItem(root, "calculation");
-    cJSON *et        = cJSON_GetObjectItem(root, "et");
+    cJSON *et = cJSON_GetObjectItem(root, "et");
 
-    const char *calculation = cJSON_IsString(calc_item) ? calc_item->valuestring : "";
+    const char *calculation =
+        cJSON_IsString(calc_item) ? calc_item->valuestring : "";
     double et_val = cJSON_IsNumber(et) ? et->valuedouble : 0.0;
 
     ErfaCalcType calc_type;
@@ -241,7 +242,8 @@ static void dispatch(const char *json) {
       calc_type = ERFA_CALC_TRUE_LUNAR_NODE;
     } else {
       char msg[128];
-      snprintf(msg, sizeof(msg), "unknown lunar node calculation: %s", calculation);
+      snprintf(msg, sizeof(msg), "unknown lunar node calculation: %s",
+               calculation);
       send_error(id, msg);
       cJSON_Delete(root);
       return;
@@ -267,10 +269,6 @@ static void dispatch(const char *json) {
 /* ── Entry point ─────────────────────────────────────────────────────────── */
 
 int main(void) {
-#ifdef _WIN32
-  _setmode(_fileno(stdin), _O_BINARY);
-  _setmode(_fileno(stdout), _O_BINARY);
-#endif
 
   ops_init();
 

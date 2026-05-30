@@ -1,5 +1,5 @@
 /*
- * erfa_ops.h — ERFA-based lunar node calculations for spice_worker.
+ * erfa_ops.h — ERFA-based lunar node calculations for angelus_worker.
  *
  * Computes the ecliptic longitude of the Moon's ascending node using the
  * ERFA (Essential Routines for Fundamental Astronomy) library v2.0.1,

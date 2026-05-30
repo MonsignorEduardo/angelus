@@ -1,4 +1,4 @@
-# meson.build — spice_worker native executable
+# meson.build — angelus_worker native executable
 #
 # Invocation:
 #   This file is driven by the Makefile, which is called by elixir_make.
@@ -17,7 +17,7 @@
 # Supported targets: aarch64-apple-darwin, x86_64-linux-gnu.
 
 project(
-    'spice_worker',
+    'angelus_worker',
     'c',
     version: '0.0.2',
     default_options: ['c_std=c11', 'warning_level=2'],
@@ -46,11 +46,11 @@ sources = files(
 
 # ── Executable ────────────────────────────────────────────────────────────
 executable(
-    'spice_worker',
+    'angelus_worker',
     sources,
-    dependencies:        [cspice_dep, cjson_dep, erfa_dep],
+    dependencies: [cspice_dep, cjson_dep, erfa_dep],
     include_directories: include_directories('src'),
-    link_args:           ['-lm'],
-    install:             true,
-    install_dir:         mix_app_path / 'priv',
+    link_args: ['-lm'],
+    install: true,
+    install_dir: mix_app_path / 'priv',
 )

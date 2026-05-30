@@ -1,5 +1,5 @@
 /*
- * cspice_ops.h — CSPICE operation declarations for spice_worker.
+ * cspice_ops.h — CSPICE operation declarations for angelus_worker.
  *
  * All functions operate on CSPICE global state.
  * The worker process is single-threaded; concurrency is handled by the

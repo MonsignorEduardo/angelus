@@ -1,5 +1,5 @@
 /*
- * erfa_ops.c — ERFA-based lunar node calculations for spice_worker.
+ * erfa_ops.c — ERFA-based lunar node calculations for angelus_worker.
  *
  * Mean node:
  *   Uses eraFaom03(t), the IAU IERS Conventions (2003) polynomial for
@@ -28,8 +28,8 @@
 #include "erfam.h"
 
 #include <math.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 #define DEG_360 360.0
 #define RAD_TO_DEG (180.0 / ERFA_DPI)
@@ -47,8 +47,8 @@
  * ERFA uses two-part JD for precision; we split as (J2000.0, delta_days).
  */
 static void et_to_jd_tt(double et, double *jd1, double *jd2) {
-  *jd1 = ERFA_DJ00;                   /* 2451545.0 — J2000.0 epoch */
-  *jd2 = et / ERFA_DAYSEC;            /* ERFA_DAYSEC = 86400.0     */
+  *jd1 = ERFA_DJ00;        /* 2451545.0 — J2000.0 epoch */
+  *jd2 = et / ERFA_DAYSEC; /* ERFA_DAYSEC = 86400.0     */
 }
 
 /*
@@ -63,14 +63,13 @@ static double normalize_deg(double deg) {
 
 /* ── Implementation ──────────────────────────────────────────────────── */
 
-int ops_lunar_node(ErfaCalcType calc_type, double et,
-                   double *longitude,
+int ops_lunar_node(ErfaCalcType calc_type, double et, double *longitude,
                    char *error_buf, int buf_size) {
   double jd1, jd2;
   et_to_jd_tt(et, &jd1, &jd2);
 
   /* Julian centuries TDB/TT since J2000.0 — argument for eraFaom03. */
-  double t = jd2 / ERFA_DJC;   /* ERFA_DJC = 36525.0 days/century */
+  double t = jd2 / ERFA_DJC; /* ERFA_DJC = 36525.0 days/century */
 
   /* Mean longitude of the Moon's ascending node (radians). */
   double mean_node_rad = eraFaom03(t);
@@ -78,37 +77,37 @@ int ops_lunar_node(ErfaCalcType calc_type, double et,
   double node_deg;
 
   switch (calc_type) {
-    case ERFA_CALC_MEAN_LUNAR_NODE:
-      node_deg = mean_node_rad * RAD_TO_DEG;
-      break;
+  case ERFA_CALC_MEAN_LUNAR_NODE:
+    node_deg = mean_node_rad * RAD_TO_DEG;
+    break;
 
-    case ERFA_CALC_TRUE_LUNAR_NODE: {
-      /*
-       * True node = mean node + nutation correction in longitude projected
-       * onto the ecliptic.
-       *
-       * dpsi: nutation in longitude (rad), referred to mean ecliptic of date.
-       * eps0: mean obliquity of the ecliptic (rad), eraObl06.
-       *
-       * The correction Δnode ≈ dpsi * cos(eps0) accounts for how the
-       * nutation in longitude shifts the node longitude along the ecliptic.
-       * This matches the Swiss Ephemeris / Astro-Seek "True Node" definition.
-       */
-      double dpsi, deps;
-      eraNut06a(jd1, jd2, &dpsi, &deps);
+  case ERFA_CALC_TRUE_LUNAR_NODE: {
+    /*
+     * True node = mean node + nutation correction in longitude projected
+     * onto the ecliptic.
+     *
+     * dpsi: nutation in longitude (rad), referred to mean ecliptic of date.
+     * eps0: mean obliquity of the ecliptic (rad), eraObl06.
+     *
+     * The correction Δnode ≈ dpsi * cos(eps0) accounts for how the
+     * nutation in longitude shifts the node longitude along the ecliptic.
+     * This matches the Swiss Ephemeris / Astro-Seek "True Node" definition.
+     */
+    double dpsi, deps;
+    eraNut06a(jd1, jd2, &dpsi, &deps);
 
-      double eps0 = eraObl06(jd1, jd2);
+    double eps0 = eraObl06(jd1, jd2);
 
-      double true_node_rad = mean_node_rad + dpsi * cos(eps0);
-      node_deg = true_node_rad * RAD_TO_DEG;
-      break;
+    double true_node_rad = mean_node_rad + dpsi * cos(eps0);
+    node_deg = true_node_rad * RAD_TO_DEG;
+    break;
+  }
+
+  default:
+    if (error_buf && buf_size > 0) {
+      snprintf(error_buf, buf_size, "unknown calc_type: %d", (int)calc_type);
     }
-
-    default:
-      if (error_buf && buf_size > 0) {
-        snprintf(error_buf, buf_size, "unknown calc_type: %d", (int)calc_type);
-      }
-      return -1;
+    return -1;
   }
 
   *longitude = normalize_deg(node_deg);

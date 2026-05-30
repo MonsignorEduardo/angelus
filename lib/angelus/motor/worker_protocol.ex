@@ -1,6 +1,6 @@
-defmodule Angelus.Spice.WorkerProtocol do
+defmodule Angelus.Motor.WorkerProtocol do
   @moduledoc """
-  Encodes requests and decodes responses for the `spice_worker` Port protocol.
+  Encodes requests and decodes responses for the `angelus_motor` Port protocol.
 
   Frame format (matching Erlang `packet: 4`):
     [4 bytes big-endian uint32: payload length][payload: UTF-8 JSON]

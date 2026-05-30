@@ -1,7 +1,7 @@
-defmodule Angelus.Spice.WorkerProtocolTest do
+defmodule Angelus.CPort.WorkerProtocolTest do
   use ExUnit.Case, async: true
 
-  alias Angelus.Spice.WorkerProtocol
+  alias Angelus.CPort.WorkerProtocol
 
   # ── Encoding ────────────────────────────────────────────────────────────
 

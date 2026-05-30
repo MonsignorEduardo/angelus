@@ -6,7 +6,7 @@ defmodule Angelus.Application do
   @impl true
   @spec start(Application.start_type(), term()) :: Supervisor.on_start()
   def start(_type, _args) do
-    children = [Angelus.Spice.Supervisor]
+    children = [Angelus.Motor.Supervisor]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Angelus.Supervisor)
   end

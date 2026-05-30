@@ -17,7 +17,7 @@ defmodule Angelus do
         ~U[1990-05-24 06:30:00Z]
       )
 
-  See `Angelus.Ephemeris` and `Angelus.Spice` for the full API.
+  See `Angelus.Ephemeris` and `Angelus.Motor` for the full API.
   """
 
   @version Mix.Project.config()[:version]
@@ -45,14 +45,14 @@ defmodule Angelus do
   @doc """
   Loads the default v0.1 SPICE kernel set from `priv/kernels/`.
 
-  Delegates to `Angelus.Spice.load_kernels/0`.
+  Delegates to `Angelus.Motor.load_kernels/0`.
   """
-  defdelegate load_kernels(), to: Angelus.Spice
+  defdelegate load_kernels(), to: Angelus.Motor
 
   @doc """
   Loads SPICE kernels with options or explicit paths.
 
-  Delegates to `Angelus.Spice.load_kernels/1`.
+  Delegates to `Angelus.Motor.load_kernels/1`.
   """
-  defdelegate load_kernels(paths_or_opts), to: Angelus.Spice
+  defdelegate load_kernels(paths_or_opts), to: Angelus.Motor
 end

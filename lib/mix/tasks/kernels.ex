@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   use Mix.Task
 
-  alias Angelus.Spice.KernelSet
+  alias Angelus.Motor.KernelSet
 
   @download_step_bytes 1_000_000
 
