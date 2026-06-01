@@ -34,3 +34,8 @@ test-integration: build
 
 # Run e2e tests against CSPICE and the JPL Horizons fixture
 test-e2e: test-integration
+
+# Run Valgrind inside the Alpine Docker image
+check-leaks:
+    docker build -f docker/valgrid.Dockerfile -t angelus-valgrind .
+    docker run --rm angelus-valgrind

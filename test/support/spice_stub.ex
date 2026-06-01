@@ -95,21 +95,30 @@ defmodule Angelus.CPortStub do
   }
 
   @impl true
-  def utc_to_et(%DateTime{} = datetime) do
+  def get_ephemeride(%DateTime{} = datetime, body, opts) when is_list(opts) do
     case Map.fetch(@et_map, datetime) do
-      {:ok, et} -> {:ok, et}
-      :error -> {:error, {:stub_unknown_datetime, datetime}}
-    end
-  end
+      {:ok, et} ->
+        case Map.fetch(@state_map, {body, et}) do
+          {:ok, data} ->
+            data = Map.put(data, :kernel_metadata, @kernel_metadata)
 
-  @impl true
-  def state(body, et) do
-    case Map.fetch(@state_map, {body, et}) do
-      {:ok, data} ->
-        {:ok, Map.put(data, :kernel_metadata, @kernel_metadata)}
+            # Convert angles to radians when :rad present in opts
+            data =
+              if :rad in opts do
+                Map.update!(data, :ecliptic_longitude, fn deg -> deg * :math.pi() / 180.0 end)
+                |> Map.update!(:ecliptic_latitude, fn deg -> deg * :math.pi() / 180.0 end)
+              else
+                data
+              end
+
+            {:ok, Map.put(data, :et, et)}
+
+          :error ->
+            {:error, {:stub_unknown_state, {body, et}}}
+        end
 
       :error ->
-        {:error, {:stub_unknown_state, {body, et}}}
+        {:error, {:stub_unknown_datetime, datetime}}
     end
   end
 end

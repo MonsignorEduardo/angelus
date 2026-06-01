@@ -60,6 +60,9 @@ defmodule Angelus.Ephemeris do
       `Angelus.Ephemeris.Adapter` behaviour. Defaults to
       `Angelus.Ephemeris.Adapters.Spice`.
 
+    * `:rad` — return longitude/latitude in radians
+    * `:angles` — explicit alias for degrees (default)
+
   ## Returns
 
     * `{:ok, %{atom() => %Angelus.Ephemeris.BodyPosition{}}}` — a map keyed by
@@ -88,24 +91,32 @@ defmodule Angelus.Ephemeris do
          :ok <- validate_body_list_shape(bodies),
          :ok <- validate_duplicates(bodies),
          :ok <- validate_supported_bodies(bodies),
-         :ok <- validate_public_range(datetime),
-         {:ok, et} <- adapter.utc_to_et(datetime) do
-      build_positions(bodies, et, adapter)
+         :ok <- validate_public_range(datetime) do
+      build_positions(bodies, datetime, adapter, opts)
     end
   end
 
-  defp build_positions(bodies, et, adapter) do
+  defp build_positions(bodies, datetime, adapter, opts) do
     Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
-      case build_position(body, et, adapter) do
+      case build_position(body, datetime, adapter, opts) do
         {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
   end
 
-  defp build_position(body, et, adapter) do
-    with {:ok, state} <- adapter.state(body, et) do
-      longitude = Angelus.Angle.normalize(state.ecliptic_longitude)
+  defp build_position(body, datetime, adapter, opts) do
+    with {:ok, state} <- adapter.get_ephemeride(datetime, body, opts) do
+      # Normalize longitude according to units: degrees normalized to [0,360),
+      # radians normalized to [0, 2*pi).
+      longitude =
+        if :rad in opts do
+          normalize_radians(state.ecliptic_longitude)
+        else
+          Angelus.Angle.normalize(state.ecliptic_longitude)
+        end
+
+      latitude = state.ecliptic_latitude
 
       {:ok,
        %BodyPosition{
@@ -117,12 +128,19 @@ defmodule Angelus.Ephemeris do
          velocity_km_s: state.velocity_km_s,
          light_time_seconds: state.light_time_seconds,
          longitude: longitude,
-         latitude: state.ecliptic_latitude,
+         latitude: latitude,
          distance_au: state.distance_au,
          metadata: metadata(state, adapter)
        }}
     end
   end
+
+  defp normalize_radians(value) when is_number(value) do
+    two_pi = 2.0 * :math.pi()
+    value - two_pi * :math.floor(value / two_pi)
+  end
+
+  defp normalize_radians(_), do: {:error, :invalid_angle}
 
   defp metadata(state, adapter) do
     kernel_metadata = state.kernel_metadata || %{}
@@ -145,10 +163,9 @@ defmodule Angelus.Ephemeris do
   end
 
   defp validate_options(opts) when is_list(opts) do
-    case Enum.find(opts, fn
-           {:adapter, _adapter} -> false
-           _option -> true
-         end) do
+    allowed_keys = [:adapter, :rad, :angles]
+
+    case Enum.find(opts, fn {key, _value} -> key not in allowed_keys end) do
       nil -> :ok
       option -> {:error, {:unsupported_option, option}}
     end
@@ -172,8 +189,7 @@ defmodule Angelus.Ephemeris do
   end
 
   defp valid_adapter?(adapter) when is_atom(adapter) do
-    Code.ensure_loaded?(adapter) and function_exported?(adapter, :utc_to_et, 1) and
-      function_exported?(adapter, :state, 2)
+    Code.ensure_loaded?(adapter) and function_exported?(adapter, :get_ephemeride, 3)
   end
 
   defp valid_adapter?(_adapter), do: false

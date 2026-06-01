@@ -5,36 +5,39 @@ defmodule Angelus.Ephemeris.Adapters.Spice do
 
   alias Angelus.Ephemeris.BodyCatalog
 
-  @doc "Converts UTC datetime to SPICE ephemeris time through `Angelus.Motor`."
+  @doc "Returns a full ephemeride BodyPosition for a UTC datetime and body.
+  
+  Options:
+    * `:rad` — return longitude/latitude in radians
+    * `:angles` — explicit alias for degrees (default)
+  "
   @impl true
-  @spec utc_to_et(DateTime.t()) :: {:ok, float()} | {:error, term()}
-  def utc_to_et(%DateTime{} = datetime), do: Angelus.Motor.utc_to_et(datetime)
+  @spec get_ephemeride(DateTime.t(), atom(), [atom()]) ::
+          {:ok, map()} | {:error, term()}
+  def get_ephemeride(%DateTime{} = utc, body, opts) when is_list(opts) do
+    units = if :rad in opts, do: "rad", else: "deg"
 
-  @doc "Returns SPICE-backed state data for a public ephemeris body atom."
-  @impl true
-  @spec state(atom(), float()) :: {:ok, map()} | {:error, term()}
-  def state(body, et) do
     with {:ok, target} <- BodyCatalog.fetch(body) do
-      dispatch_state(body, target, et)
+      dispatch_ephemeride(body, target, utc, units)
     end
   end
 
   # ── Dispatch by target kind ──────────────────────────────────────────────
 
-  defp dispatch_state(body, %{target_kind: :lunar_node, calculation: calculation} = target, et) do
-      with {:ok, state} <- Angelus.Motor.lunar_node(calculation, et) do
+defp dispatch_ephemeride(body, %{target_kind: :lunar_node, calculation: calculation} = target, utc, units) do
+    with {:ok, state} <- Angelus.Motor.lunar_node(calculation, utc, units: units) do
       {:ok, Map.merge(state, node_metadata(body, target))}
     end
-  end
+end
 
-  defp dispatch_state(body, %{spice_target: spice_target} = target, et)
-       when is_binary(spice_target) do
-      with {:ok, state} <- Angelus.Motor.state(spice_target, et) do
+defp dispatch_ephemeride(body, %{spice_target: spice_target} = target, utc, units)
+     when is_binary(spice_target) do
+    with {:ok, state} <- Angelus.Motor.ephemeride(spice_target, utc, units: units) do
       {:ok, Map.merge(state, state_metadata(body, target))}
     end
-  end
+end
 
-  defp dispatch_state(body, _target, _et),
+defp dispatch_ephemeride(body, _target, _utc, _units),
     do: {:error, {:unsupported_native_body, body}}
 
   # ── Metadata helpers ─────────────────────────────────────────────────────

@@ -129,14 +129,14 @@ defmodule Angelus.MixProject do
     [
       setup: ["deps.get"],
       consistency: [
-        "cmd echo Checking format ...",
-        "format",
-        "cmd echo",
         "cmd echo Checking compile warnings ...",
         "compile --no-deps-check --force",
         "cmd echo",
         "cmd echo Checking Credo ...",
         "credo -A",
+        "cmd echo",
+        "cmd echo Checking Dialyzer ...",
+        "dialyzer --format github",
         "cmd echo",
         "cmd echo Checking tests ...",
         "cmd sh -c 'MIX_ENV=test mix test test/unit'",

@@ -2,10 +2,13 @@ defmodule Angelus.Ephemeris.Adapter do
   @moduledoc """
   Contract for ephemeris engines used by `Angelus.Ephemeris`.
 
-  Adapters return SPICE-like state maps; `Angelus.Ephemeris` owns validation,
-  longitude normalization, and public `%Angelus.Ephemeris.BodyPosition{}` construction.
+  Adapters are expected to implement a single entrypoint `get_ephemeride/3`
+  which performs the full UTC -> ET -> state pipeline in one round-trip.
+  The native motor performs any unit conversions (degrees vs radians).
   """
 
-  @callback utc_to_et(DateTime.t()) :: {:ok, float()} | {:error, term()}
-  @callback state(atom(), float()) :: {:ok, map()} | {:error, term()}
+  @type opt :: :rad | :angles
+
+  @callback get_ephemeride(DateTime.t(), atom(), [opt]) ::
+              {:ok, Angelus.Ephemeris.BodyPosition.t()} | {:error, term()}
 end

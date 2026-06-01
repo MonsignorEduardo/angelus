@@ -63,30 +63,16 @@ defmodule Angelus.Motor.Server do
     end
   end
 
-  # utc_to_et / state: return kernels_not_loaded when no kernels (covers nil port too)
-  def handle_call({:utc_to_et, _datetime}, _from, %{loaded?: false} = state),
+  # ephemeride / lunar_node: return kernels_not_loaded when no kernels (covers nil port too)
+  def handle_call({:ephemeride, _target, _utc, _opts}, _from, %{loaded?: false} = state),
     do: {:reply, {:error, :kernels_not_loaded}, state}
 
-  def handle_call({:utc_to_et, datetime}, from, state) do
-    iso8601 = DateTime.to_iso8601(datetime)
+  def handle_call({:ephemeride, target, utc, opts}, from, state) do
+    iso8601 = DateTime.to_iso8601(utc)
+    units = Keyword.get(opts, :units, "deg")
     {id, new_state} = next_id(state)
 
-    send_to_port(state.port, WorkerProtocol.encode_utc_to_et(id, iso8601))
-
-    pending = Map.put(new_state.pending, id, {:utc_to_et, from})
-    {:noreply, %{new_state | pending: pending}}
-  end
-
-  def handle_call({:state, _target, _et, _opts}, _from, %{loaded?: false} = state),
-    do: {:reply, {:error, :kernels_not_loaded}, state}
-
-  def handle_call({:state, target, et, opts}, from, state) do
-    {id, new_state} = next_id(state)
-
-    send_to_port(
-      state.port,
-      WorkerProtocol.encode_state(id, target, et)
-    )
+    send_to_port(state.port, WorkerProtocol.encode_ephemeride(id, target, iso8601, units))
 
     meta = %{
       observer: Keyword.get(opts, :observer, :earth),
@@ -95,20 +81,19 @@ defmodule Angelus.Motor.Server do
       kernel_metadata: state.metadata
     }
 
-    pending = Map.put(new_state.pending, id, {:state, from, meta})
+    pending = Map.put(new_state.pending, id, {:ephemeride, from, meta})
     {:noreply, %{new_state | pending: pending}}
   end
 
-  def handle_call({:lunar_node, _calculation, _et}, _from, %{loaded?: false} = state),
+  def handle_call({:lunar_node, _calculation, _utc, _opts}, _from, %{loaded?: false} = state),
     do: {:reply, {:error, :kernels_not_loaded}, state}
 
-  def handle_call({:lunar_node, calculation, et}, from, state) do
+  def handle_call({:lunar_node, calculation, utc, opts}, from, state) do
+    iso8601 = DateTime.to_iso8601(utc)
+    units = Keyword.get(opts, :units, "deg")
     {id, new_state} = next_id(state)
 
-    send_to_port(
-      state.port,
-      WorkerProtocol.encode_lunar_node(id, calculation, et)
-    )
+    send_to_port(state.port, WorkerProtocol.encode_lunar_node(id, calculation, iso8601, units))
 
     pending = Map.put(new_state.pending, id, {:lunar_node, from})
     {:noreply, %{new_state | pending: pending}}
@@ -165,27 +150,18 @@ defmodule Angelus.Motor.Server do
   @spec load_kernels([String.t()], keyword()) :: {:ok, map()} | {:error, term()}
   def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
 
-  @doc "Converts a UTC datetime to SPICE ephemeris time through the native worker."
-  @spec utc_to_et(DateTime.t()) :: {:ok, float()} | {:error, term()}
-  def utc_to_et(datetime), do: call({:utc_to_et, datetime})
-
-  @doc "Returns native SPICE state data for a resolved SPICE target string."
-  @spec state(String.t(), float(), keyword()) :: {:ok, map()} | {:error, term()}
-  def state(target, et, opts), do: call({:state, target, et, opts})
+  @doc "Combined UTC -> ET -> state round-trip via the native worker."
+  @spec ephemeride(String.t(), DateTime.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def ephemeride(target, utc, opts), do: call({:ephemeride, target, utc, opts})
 
   @doc """
   Computes the ecliptic longitude of the Moon's ascending node using ERFA.
 
-  `calculation` must be `:mean_lunar_node` or `:true_lunar_node`.
-  `et` is ephemeris time (TDB seconds since J2000.0) as returned by `utc_to_et/1`.
-
-  Returns `{:ok, map()}` with keys matching the standard state result
-  (`:ecliptic_longitude` in degrees [0, 360), `:ecliptic_latitude` = 0.0,
-  `:distance_au` = 0.0, etc.) or `{:error, reason}`.
+  Accepts a `%DateTime{}` and optional opts (e.g., `units: "rad").
   """
-  @spec lunar_node(:mean_lunar_node | :true_lunar_node, float()) ::
+  @spec lunar_node(:mean_lunar_node | :true_lunar_node, DateTime.t(), keyword()) ::
           {:ok, map()} | {:error, term()}
-  def lunar_node(calculation, et), do: call({:lunar_node, calculation, et})
+  def lunar_node(calculation, utc, opts \\ []), do: call({:lunar_node, calculation, utc, opts})
 
   @doc "Returns metadata for the currently loaded kernel set, if any."
   @spec metadata() :: {:ok, map() | nil}
@@ -269,17 +245,13 @@ defmodule Angelus.Motor.Server do
             {:noreply, %{state | pending: remaining, loaded?: false, metadata: nil}}
         end
 
-      {{:utc_to_et, from}, remaining} ->
-        GenServer.reply(from, result)
+      {{:ephemeride, from, meta}, remaining} ->
+        reply = handle_state_result(result, meta)
+        GenServer.reply(from, reply)
         {:noreply, %{state | pending: remaining}}
 
       {{:lunar_node, from}, remaining} ->
         reply = handle_lunar_node_result(result)
-        GenServer.reply(from, reply)
-        {:noreply, %{state | pending: remaining}}
-
-      {{:state, from, meta}, remaining} ->
-        reply = handle_state_result(result, meta)
         GenServer.reply(from, reply)
         {:noreply, %{state | pending: remaining}}
     end
@@ -313,9 +285,8 @@ defmodule Angelus.Motor.Server do
   end
 
   defp reply_to_waiter({:load_kernels, from, _meta}, reply), do: GenServer.reply(from, reply)
-  defp reply_to_waiter({:utc_to_et, from}, reply), do: GenServer.reply(from, reply)
   defp reply_to_waiter({:lunar_node, from}, reply), do: GenServer.reply(from, reply)
-  defp reply_to_waiter({:state, from, _meta}, reply), do: GenServer.reply(from, reply)
+  defp reply_to_waiter({:ephemeride, from, _meta}, reply), do: GenServer.reply(from, reply)
   defp reply_to_waiter(:clear_ack, _reply), do: :ok
   defp reply_to_waiter(nil, _reply), do: :ok
 

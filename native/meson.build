@@ -38,10 +38,14 @@ cjson_dep = dependency('libcjson')
 
 # ── Sources ───────────────────────────────────────────────────────────────
 sources = files(
-    'src/cspice_ops.c',
-    'src/erfa_ops.c',
+    'src/astro/cspice_ops.c',
+    'src/astro/erfa_ops.c',
+    'src/astro/time.c',
+    'src/io/packet.c',
+    'src/io/request.c',
+    'src/io/response.c',
+    'src/kernels/defaults.c',
     'src/main.c',
-    'src/protocol.c',
 )
 
 # ── Executable ────────────────────────────────────────────────────────────

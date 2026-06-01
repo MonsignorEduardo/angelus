@@ -41,32 +41,28 @@ defmodule Angelus.Motor.WorkerProtocol do
   def encode_load_default_kernels(id, base_path) when is_binary(base_path),
     do: Jason.encode!(%{"id" => id, "op" => "load_default_kernels", "base_path" => base_path})
 
-  @doc "Encodes a utc_to_et request."
-  @spec encode_utc_to_et(request_id(), String.t()) :: binary()
-  def encode_utc_to_et(id, iso8601) when is_binary(iso8601),
-    do: Jason.encode!(%{"id" => id, "op" => "utc_to_et", "utc" => iso8601})
-
   @doc """
-  Encodes a state request.
+  Encodes an ephemeride request — a single UTC->ET->state round-trip.
 
-  Parameters are fixed for v0.1:
-    observer: "EARTH"
-    frame:    "ECLIPJ2000"
-    abcorr:   "LT+S"
+  Fields:
+    * `target` (string) — SPICE target name
+    * `utc` (string) — ISO8601 datetime
+    * `units` (string) — "deg" | "rad"
   """
-  @spec encode_state(request_id(), String.t(), float()) :: binary()
-  def encode_state(id, spice_target, et)
-      when is_binary(spice_target) and is_float(et),
-      do:
-        Jason.encode!(%{
-          "id" => id,
-          "op" => "state",
-          "target" => spice_target,
-          "et" => et,
-          "observer" => "EARTH",
-          "frame" => "ECLIPJ2000",
-          "abcorr" => "LT+S"
-        })
+  @spec encode_ephemeride(request_id(), String.t(), String.t(), String.t()) :: binary()
+  def encode_ephemeride(id, spice_target, iso8601, units)
+      when is_binary(spice_target) and is_binary(iso8601) and is_binary(units) do
+    Jason.encode!(%{
+      "id" => id,
+      "op" => "ephemeride",
+      "target" => spice_target,
+      "utc" => iso8601,
+      "observer" => "EARTH",
+      "frame" => "ECLIPJ2000",
+      "abcorr" => "LT+S",
+      "units" => units
+    })
+  end
 
   @doc """
   Encodes a lunar_node request.
@@ -75,15 +71,16 @@ defmodule Angelus.Motor.WorkerProtocol do
     - `:mean_lunar_node` — IAU 2003 polynomial (eraFaom03)
     - `:true_lunar_node` — mean node corrected with IAU 2006/2000A nutation
   """
-  @spec encode_lunar_node(request_id(), :mean_lunar_node | :true_lunar_node, float()) :: binary()
-  def encode_lunar_node(id, calculation, et)
-      when calculation in [:mean_lunar_node, :true_lunar_node] and is_float(et),
+  @spec encode_lunar_node(request_id(), :mean_lunar_node | :true_lunar_node, String.t(), String.t()) :: binary()
+  def encode_lunar_node(id, calculation, iso8601, units)
+      when calculation in [:mean_lunar_node, :true_lunar_node] and is_binary(iso8601) and is_binary(units),
       do:
         Jason.encode!(%{
           "id" => id,
           "op" => "lunar_node",
           "calculation" => Atom.to_string(calculation),
-          "et" => et
+          "utc" => iso8601,
+          "units" => units
         })
 
   # ── Decoding ────────────────────────────────────────────────────────────

@@ -52,7 +52,7 @@ development:
 ```elixir
 def deps do
   [
-    {:angelus, github: "angelus-astro/angelus", tag: "v0.1.0"}
+    {:angelus, github: "MonsignorEduardo/angelus", tag: "v0.0.2"}
   ]
 end
 ```
@@ -62,7 +62,7 @@ When published to Hex, the dependency will be:
 ```elixir
 def deps do
   [
-    {:angelus, "~> 0.1.0"}
+    {:angelus, "~> 0.0.2"}
   ]
 end
 ```
@@ -71,9 +71,12 @@ end
 
 - Elixir `~> 1.19`.
 - For supported platforms, no local C compiler or CSPICE installation is required when installing from Hex.
-- Local source builds require a C compiler available as `cc`, plus `curl`, `jq`, `tar`, and either `sha256sum` or `shasum`.
+- Local source builds require a C compiler available as `cc`, plus Meson, Ninja,
+  and the native dependencies used by the Meson subprojects.
 
-Precompiled CSPICE-enabled native workers are provided for macOS Apple Silicon (`aarch64-apple-darwin`) and Linux glibc x86_64 (`x86_64-linux-gnu`). CSPICE itself is not compiled from source — the precompiled `cspice.a` from the NAIF toolkit archive is downloaded and linked directly.
+Precompiled CSPICE-enabled native workers are provided for macOS Apple Silicon
+(`aarch64-apple-darwin`), Linux glibc x86_64 (`x86_64-linux-gnu`), and Linux
+glibc arm64 (`aarch64-linux-gnu`).
 
 ## Quick Start
 
@@ -112,12 +115,26 @@ positions.sun.longitude
 positions.moon.distance_au
 ```
 
+Pass `:rad` to return longitude and latitude in radians instead of degrees:
+
+```elixir
+{:ok, positions} =
+  Angelus.positions([:sun, :moon], ~U[1990-05-24 06:30:00Z], [:rad])
+```
+
 Query one body at a time with `Angelus.position/3`:
 
 ```elixir
 {:ok, sun} = Angelus.position(:sun, ~U[2000-01-01 12:00:00Z])
 
 sun.longitude
+```
+
+Generate a CSV-style ephemeris for the ten planet/luminary bodies from the Mix
+task:
+
+```bash
+mix angelus.ephemeridde 1998-07-18T05:00:00Z
 ```
 
 ## Kernel Loading
@@ -187,6 +204,9 @@ Position APIs return tagged tuples:
 - `:latitude` - geocentric ecliptic latitude in degrees.
 - `:distance_au` - distance from Earth in astronomical units.
 - `:position_km` and `:velocity_km_s` - SPICE state vectors.
+- `:light_time_seconds` - one-way light travel time from target to observer.
+- `:body`, `:spice_target`, `:spice_id`, and `:target_kind` - body catalog
+  metadata.
 - `:metadata` - engine, kernel, target, observer, frame, and version metadata.
 
 ## Development

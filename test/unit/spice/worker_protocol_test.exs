@@ -1,7 +1,7 @@
 defmodule Angelus.CPort.WorkerProtocolTest do
   use ExUnit.Case, async: true
 
-  alias Angelus.CPort.WorkerProtocol
+  alias Angelus.Motor.WorkerProtocol
 
   # ── Encoding ────────────────────────────────────────────────────────────
 
@@ -21,41 +21,37 @@ defmodule Angelus.CPort.WorkerProtocolTest do
     assert {:ok, %{"id" => 3, "op" => "load_kernels", "paths" => ^paths}} = Jason.decode(json)
   end
 
-  test "encode_utc_to_et includes utc field" do
-    json = WorkerProtocol.encode_utc_to_et(4, "1990-05-24T06:30:00Z")
-
-    assert {:ok, %{"id" => 4, "op" => "utc_to_et", "utc" => "1990-05-24T06:30:00Z"}} =
-             Jason.decode(json)
-  end
-
-  test "encode_state includes all required fields with v0.1 fixed params" do
-    json = WorkerProtocol.encode_state(5, "JUPITER", -302_378_400.0)
+  test "encode_ephemeride includes target, utc, units and fixed params" do
+    json = WorkerProtocol.encode_ephemeride(4, "JUPITER", "1990-05-24T06:30:00Z", "deg")
     assert {:ok, decoded} = Jason.decode(json)
-    assert decoded["id"] == 5
-    assert decoded["op"] == "state"
+    assert decoded["id"] == 4
+    assert decoded["op"] == "ephemeride"
     assert decoded["target"] == "JUPITER"
     assert decoded["observer"] == "EARTH"
     assert decoded["frame"] == "ECLIPJ2000"
     assert decoded["abcorr"] == "LT+S"
-    assert decoded["et"] == -302_378_400.0
+    assert decoded["utc"] == "1990-05-24T06:30:00Z"
+    assert decoded["units"] == "deg"
   end
 
   test "encode_lunar_node encodes mean_lunar_node correctly" do
-    json = WorkerProtocol.encode_lunar_node(6, :mean_lunar_node, 0.0)
+    json = WorkerProtocol.encode_lunar_node(6, :mean_lunar_node, "2000-01-01T12:00:00Z", "deg")
     assert {:ok, decoded} = Jason.decode(json)
     assert decoded["id"] == 6
     assert decoded["op"] == "lunar_node"
     assert decoded["calculation"] == "mean_lunar_node"
-    assert decoded["et"] == 0.0
+    assert decoded["utc"] == "2000-01-01T12:00:00Z"
+    assert decoded["units"] == "deg"
   end
 
   test "encode_lunar_node encodes true_lunar_node correctly" do
-    json = WorkerProtocol.encode_lunar_node(7, :true_lunar_node, -302_378_400.0)
+    json = WorkerProtocol.encode_lunar_node(7, :true_lunar_node, "1990-05-24T06:30:00Z", "deg")
     assert {:ok, decoded} = Jason.decode(json)
     assert decoded["id"] == 7
     assert decoded["op"] == "lunar_node"
     assert decoded["calculation"] == "true_lunar_node"
-    assert decoded["et"] == -302_378_400.0
+    assert decoded["utc"] == "1990-05-24T06:30:00Z"
+    assert decoded["units"] == "deg"
   end
 
   # ── Decoding ────────────────────────────────────────────────────────────
