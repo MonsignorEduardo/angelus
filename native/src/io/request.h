@@ -1,0 +1,65 @@
+/*
+ * request.h — JSON request parsing for angelus_worker operations.
+ */
+
+#ifndef ANGELUS_IO_REQUEST_H
+#define ANGELUS_IO_REQUEST_H
+
+#include <cjson/cJSON.h>
+
+#define REQUEST_MAX_PATHS 32
+
+typedef enum {
+  ACTION_INVALID,
+  ACTION_UNKNOWN,
+  ACTION_PING,
+  ACTION_CLEAR_KERNELS,
+  ACTION_LOAD_KERNELS,
+  ACTION_LOAD_DEFAULT_KERNELS,
+  ACTION_EPHEMERIDE,
+  ACTION_LUNAR_NODE,
+} ActionName;
+
+typedef struct {
+  const char *paths[REQUEST_MAX_PATHS];
+  int path_count;
+} LoadKernelsArgs;
+
+typedef struct {
+  const char *base_path;
+} LoadDefaultKernelsArgs;
+
+typedef struct {
+  const char *target;
+  const char *utc;
+  const char *units;
+  const char *observer;
+  const char *frame;
+  const char *abcorr;
+} EphemerideArgs;
+
+typedef struct {
+  const char *calculation;
+  const char *utc;
+  const char *units;
+} LunarNodeArgs;
+
+typedef struct {
+  ActionName name;
+  int id;
+  const char *op;
+  const char *error;
+  cJSON *root;
+
+  union {
+    LoadKernelsArgs load_kernels;
+    LoadDefaultKernelsArgs load_default_kernels;
+    EphemerideArgs ephemeride;
+    LunarNodeArgs lunar_node;
+  } args;
+} ParsedAction;
+
+ParsedAction parse_packet(const char *json);
+void parsed_action_free(ParsedAction *action);
+
+#endif /* ANGELUS_IO_REQUEST_H */

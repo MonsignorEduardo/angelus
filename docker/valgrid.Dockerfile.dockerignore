@@ -1,0 +1,9 @@
+_build
+deps
+native/build
+native/lib
+.git
+.elixir_ls
+priv/kernels
+*.dSYM
+.DS_Store
