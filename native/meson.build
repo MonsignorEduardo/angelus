@@ -44,7 +44,6 @@ sources = files(
     'src/io/packet.c',
     'src/io/request.c',
     'src/io/response.c',
-    'src/kernels/defaults.c',
     'src/main.c',
 )
 

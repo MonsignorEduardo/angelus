@@ -11,7 +11,7 @@ defmodule Angelus.Ephemeris.HorizonsValidationTest do
   }
 
   setup_all do
-    assert {:ok, _metadata} = Angelus.CPort.load_kernels(replace: true)
+    assert {:ok, _metadata} = Angelus.Motor.load_kernels(replace: true)
     :ok
   end
 

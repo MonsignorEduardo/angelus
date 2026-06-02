@@ -5,6 +5,7 @@ defmodule Angelus.Motor.Server do
 
   alias Angelus.Motor.KernelSet
   alias Angelus.Motor.WorkerProtocol
+  require Logger
 
   @worker_bin "angelus_worker"
 
@@ -23,9 +24,11 @@ defmodule Angelus.Motor.Server do
 
     case open_port() do
       {:ok, port} ->
+        Logger.info("Angelus worker port opened")
         state = %{base | port: port}
         # Clear any residual CSPICE state at startup
         {id, state} = next_id(state)
+        Logger.debug("Sending startup clear_kernels request", request_id: id)
         send_to_port(port, WorkerProtocol.encode_clear_kernels(id))
         {:ok, state}
 
@@ -37,8 +40,6 @@ defmodule Angelus.Motor.Server do
     end
   end
 
-  # ── Call handlers ────────────────────────────────────────────────────────
-
   @impl true
   # load_kernels: structural validation runs before port check so whitelist
   # errors are returned even when the worker binary is absent.
@@ -46,12 +47,15 @@ defmodule Angelus.Motor.Server do
           {:reply, term(), map()} | {:noreply, map()}
   def handle_call({:load_kernels, paths, opts}, from, state) do
     replace? = Keyword.get(opts, :replace, false)
+    Logger.info("Loading SPICE kernels", replace?: replace?, kernel_count: length(paths))
 
     case KernelSet.validate(paths) do
       {:error, reason} ->
+        Logger.warning("SPICE kernel validation failed", reason: inspect(reason))
         {:reply, {:error, reason}, state}
 
       {:ok, _metadata} when state.port == nil ->
+        Logger.warning("SPICE worker unavailable while loading kernels")
         {:reply, {:error, :worker_not_available}, state}
 
       {:ok, metadata} ->
@@ -63,39 +67,27 @@ defmodule Angelus.Motor.Server do
     end
   end
 
-  # ephemeride / lunar_node: return kernels_not_loaded when no kernels (covers nil port too)
+  # ephemeride: return kernels_not_loaded when no kernels (covers nil port too)
   def handle_call({:ephemeride, _target, _utc, _opts}, _from, %{loaded?: false} = state),
     do: {:reply, {:error, :kernels_not_loaded}, state}
 
   def handle_call({:ephemeride, target, utc, opts}, from, state) do
     iso8601 = DateTime.to_iso8601(utc)
-    units = Keyword.get(opts, :units, "deg")
+    request_opts = ephemeride_request_opts(opts)
     {id, new_state} = next_id(state)
 
-    send_to_port(state.port, WorkerProtocol.encode_ephemeride(id, target, iso8601, units))
+    Logger.debug("Requesting ephemeride", request_id: id, target: target, utc: iso8601)
+    send_to_port(state.port, WorkerProtocol.encode_ephemeride(id, target, iso8601, request_opts))
 
     meta = %{
-      observer: Keyword.get(opts, :observer, :earth),
-      abcorr: "LT+S",
-      frame_base: "ECLIPJ2000",
+      observer: request_opts.observer,
+      abcorr: request_opts.abcorr,
+      frame_base: request_opts.frame,
+      state: request_opts.state,
       kernel_metadata: state.metadata
     }
 
     pending = Map.put(new_state.pending, id, {:ephemeride, from, meta})
-    {:noreply, %{new_state | pending: pending}}
-  end
-
-  def handle_call({:lunar_node, _calculation, _utc, _opts}, _from, %{loaded?: false} = state),
-    do: {:reply, {:error, :kernels_not_loaded}, state}
-
-  def handle_call({:lunar_node, calculation, utc, opts}, from, state) do
-    iso8601 = DateTime.to_iso8601(utc)
-    units = Keyword.get(opts, :units, "deg")
-    {id, new_state} = next_id(state)
-
-    send_to_port(state.port, WorkerProtocol.encode_lunar_node(id, calculation, iso8601, units))
-
-    pending = Map.put(new_state.pending, id, {:lunar_node, from})
     {:noreply, %{new_state | pending: pending}}
   end
 
@@ -113,27 +105,37 @@ defmodule Angelus.Motor.Server do
     case WorkerProtocol.decode(data) do
       {:error, :decode_error, _raw} ->
         # Malformed response — log and continue; don't crash
+        Logger.error("Received malformed response from Angelus worker")
         {:noreply, state}
 
       {:ok, id, result} ->
+        Logger.debug("Received Angelus worker reply", request_id: id, result: :ok)
         handle_worker_reply(id, {:ok, result}, state)
 
       {:error, id, reason} ->
+        Logger.warning("Received Angelus worker error", request_id: id, reason: inspect(reason))
         handle_worker_reply(id, {:error, reason}, state)
     end
   end
 
-  def handle_info({port, {:exit_status, _status}}, %{port: port} = state) do
+  def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
     # Worker crashed; reply worker_crashed to all pending callers
+    Logger.error("Angelus worker exited",
+      exit_status: status,
+      pending_request_count: map_size(state.pending)
+    )
+
     Enum.each(state.pending, fn {_id, waiter} ->
       reply_to_waiter(waiter, {:error, :worker_crashed})
     end)
 
     case open_port() do
       {:ok, new_port} ->
+        Logger.info("Angelus worker port reopened after crash")
         {:noreply, %{state | port: new_port, pending: %{}, loaded?: false, metadata: nil}}
 
       {:error, _reason} ->
+        Logger.error("Angelus worker port could not be reopened after crash")
         {:noreply, %{state | port: nil, pending: %{}, loaded?: false, metadata: nil}}
     end
   end
@@ -154,15 +156,6 @@ defmodule Angelus.Motor.Server do
   @spec ephemeride(String.t(), DateTime.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def ephemeride(target, utc, opts), do: call({:ephemeride, target, utc, opts})
 
-  @doc """
-  Computes the ecliptic longitude of the Moon's ascending node using ERFA.
-
-  Accepts a `%DateTime{}` and optional opts (e.g., `units: "rad").
-  """
-  @spec lunar_node(:mean_lunar_node | :true_lunar_node, DateTime.t(), keyword()) ::
-          {:ok, map()} | {:error, term()}
-  def lunar_node(calculation, utc, opts \\ []), do: call({:lunar_node, calculation, utc, opts})
-
   @doc "Returns metadata for the currently loaded kernel set, if any."
   @spec metadata() :: {:ok, map() | nil}
   def metadata, do: call(:metadata)
@@ -177,6 +170,8 @@ defmodule Angelus.Motor.Server do
     bin = worker_bin_path()
 
     if File.exists?(bin) do
+      Logger.debug("Opening Angelus worker binary", worker_binary: bin)
+
       port =
         Port.open({:spawn_executable, bin}, [
           :binary,
@@ -187,6 +182,7 @@ defmodule Angelus.Motor.Server do
 
       {:ok, port}
     else
+      Logger.warning("Angelus worker binary not found", worker_binary: bin)
       {:error, {:worker_not_found, bin}}
     end
   end
@@ -205,9 +201,16 @@ defmodule Angelus.Motor.Server do
   defp do_load_kernels(paths, metadata, replace?, from, state) do
     if replace? do
       {clear_id, state1} = next_id(state)
+      Logger.debug("Sending clear_kernels request", request_id: clear_id)
       send_to_port(state1.port, WorkerProtocol.encode_clear_kernels(clear_id))
 
       {load_id, state2} = next_id(state1)
+
+      Logger.debug("Sending load_kernels request",
+        request_id: load_id,
+        kernel_count: length(paths)
+      )
+
       send_to_port(state2.port, WorkerProtocol.encode_load_kernels(load_id, paths))
 
       pending =
@@ -218,6 +221,12 @@ defmodule Angelus.Motor.Server do
       {:noreply, %{state2 | pending: pending, loaded?: false, metadata: nil}}
     else
       {load_id, state1} = next_id(state)
+
+      Logger.debug("Sending load_kernels request",
+        request_id: load_id,
+        kernel_count: length(paths)
+      )
+
       send_to_port(state1.port, WorkerProtocol.encode_load_kernels(load_id, paths))
 
       pending = Map.put(state1.pending, load_id, {:load_kernels, from, metadata})
@@ -229,29 +238,29 @@ defmodule Angelus.Motor.Server do
     case Map.pop(state.pending, id) do
       {nil, _} ->
         # Unexpected id (e.g. startup clear_kernels ack) — ignore
+        Logger.debug("Ignoring unexpected Angelus worker reply", request_id: id)
         {:noreply, state}
 
       {:clear_ack, remaining} ->
+        Logger.debug("Received clear_kernels ack", request_id: id)
         {:noreply, %{state | pending: remaining}}
 
       {{:load_kernels, from, metadata}, remaining} ->
         case result do
           {:ok, _} ->
+            Logger.info("SPICE kernels loaded", request_id: id)
             GenServer.reply(from, {:ok, metadata})
             {:noreply, %{state | pending: remaining, loaded?: true, metadata: metadata}}
 
           {:error, reason} ->
+            Logger.warning("SPICE kernel load failed", request_id: id, reason: inspect(reason))
             GenServer.reply(from, {:error, {:kernel_load_failed, reason}})
             {:noreply, %{state | pending: remaining, loaded?: false, metadata: nil}}
         end
 
       {{:ephemeride, from, meta}, remaining} ->
+        Logger.debug("Ephemeride completed", request_id: id)
         reply = handle_state_result(result, meta)
-        GenServer.reply(from, reply)
-        {:noreply, %{state | pending: remaining}}
-
-      {{:lunar_node, from}, remaining} ->
-        reply = handle_lunar_node_result(result)
         GenServer.reply(from, reply)
         {:noreply, %{state | pending: remaining}}
     end
@@ -266,35 +275,62 @@ defmodule Angelus.Motor.Server do
 
   defp handle_state_result({:error, _} = err, _meta), do: err
 
-  defp handle_lunar_node_result({:ok, raw}) do
-    case WorkerProtocol.coerce_state(raw) do
-      {:ok, coerced} -> {:ok, coerced}
-      {:error, _} -> {:error, :invalid_state_result}
-    end
-  end
-
-  defp handle_lunar_node_result({:error, _} = err), do: err
-
   defp state_metadata(meta) do
     %{
       observer: meta.observer,
       abcorr: meta.abcorr,
       frame_base: meta.frame_base,
+      state: meta.state,
       kernel_metadata: meta.kernel_metadata
     }
   end
 
+  defp ephemeride_request_opts(opts) do
+    %{
+      state: Keyword.get(opts, :state, :geocentric),
+      observer: observer_name(Keyword.get(opts, :observer, :earth)),
+      frame: frame_name(Keyword.get(opts, :frame, :eclipj2000)),
+      abcorr: abcorr_name(Keyword.get(opts, :abcorr, :lt_s))
+    }
+  end
+
+  defp observer_name(:earth), do: "EARTH"
+
+  defp frame_name(:eclipj2000), do: "ECLIPJ2000"
+  defp frame_name(:j2000), do: "J2000"
+  defp frame_name(:icrf), do: "ICRF"
+  defp frame_name(:gcrs), do: "GCRS"
+
+  defp abcorr_name(:none), do: "NONE"
+  defp abcorr_name(:lt), do: "LT"
+  defp abcorr_name(:lt_s), do: "LT+S"
+  defp abcorr_name(:cn), do: "CN"
+  defp abcorr_name(:cn_s), do: "CN+S"
+
   defp reply_to_waiter({:load_kernels, from, _meta}, reply), do: GenServer.reply(from, reply)
-  defp reply_to_waiter({:lunar_node, from}, reply), do: GenServer.reply(from, reply)
   defp reply_to_waiter({:ephemeride, from, _meta}, reply), do: GenServer.reply(from, reply)
   defp reply_to_waiter(:clear_ack, _reply), do: :ok
   defp reply_to_waiter(nil, _reply), do: :ok
 
   defp call(message) do
-    if Process.whereis(__MODULE__) do
-      GenServer.call(__MODULE__, message, 30_000)
-    else
-      {:error, :motor_server_not_started}
+    case Process.whereis(__MODULE__) do
+      nil ->
+        {:error, :motor_server_not_started}
+
+      _pid ->
+        try do
+          GenServer.call(__MODULE__, message, 30_000)
+        catch
+          :exit, {:timeout, _call} ->
+            Logger.error("Angelus motor call timed out", operation: operation_name(message))
+            {:error, :worker_timeout}
+        end
     end
   end
+
+  defp operation_name(message) when is_tuple(message) and tuple_size(message) > 0,
+    do: elem(message, 0)
+
+  defp operation_name(operation) when is_atom(operation), do: operation
+  defp operation_name(_message), do: :unknown
 end

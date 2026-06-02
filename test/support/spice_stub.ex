@@ -1,11 +1,11 @@
-defmodule Angelus.CPortStub do
+defmodule Angelus.MotorStub do
   @moduledoc """
   Stub adapter for `Angelus.Ephemeris` tests that do not require a compiled
   `priv/angelus_worker` binary or downloaded kernels.
 
   Usage in tests:
 
-      Angelus.Ephemeris.positions([:sun], datetime, adapter: Angelus.CPortStub)
+      Angelus.Ephemeris.positions([:sun], datetime, adapter: Angelus.MotorStub)
 
   The stub returns synthetic but structurally valid responses using canned
   data keyed by `{body, datetime}`.  Any unknown combination returns an error.
@@ -15,7 +15,7 @@ defmodule Angelus.CPortStub do
 
   @kernel_metadata %{
     ephemeris: :de442,
-    kernel_policy: :default_modern,
+    kernel_policy: :default,
     public_range: %{from: ~D[1900-01-01], to: ~D[2100-01-24]},
     kernels: []
   }
@@ -63,25 +63,35 @@ defmodule Angelus.CPortStub do
       ecliptic_latitude: 0.9,
       distance_au: 4.98
     },
+    {:chiron, -302_378_400.0} => %{
+      spice_target: "20002060",
+      spice_id: 20_002_060,
+      target_kind: :minor_planet,
+      position_km: {1.8e9, -1.3e9, -2.1e8},
+      velocity_km_s: {4.1, 7.2, 0.4},
+      light_time_seconds: 9_100.0,
+      ecliptic_longitude: 287.2,
+      ecliptic_latitude: -6.8,
+      distance_au: 18.23
+    },
+    {:chiron, 0.0} => %{
+      spice_target: "20002060",
+      spice_id: 20_002_060,
+      target_kind: :minor_planet,
+      position_km: {1.7e9, -1.2e9, -2.0e8},
+      velocity_km_s: {4.0, 7.1, 0.4},
+      light_time_seconds: 8_900.0,
+      ecliptic_longitude: 289.1,
+      ecliptic_latitude: -6.6,
+      distance_au: 17.82
+    },
     # Lunar node stubs at J2000.0 (ET = 0.0).
     # Mean node: eraFaom03(0) = 450160.398036 arcsec in (0, 1296000]
     # => 125.04455 degrees.
     # True node: mean node + nutation correction ≈ 125.08 degrees.
     # These values are rounded to the nearest 0.01° for stub purposes.
-    {:mean_node, 0.0} => %{
-      spice_target: nil,
-      spice_id: nil,
-      target_kind: :lunar_node,
-      calculation: :mean_lunar_node,
-      position_km: {0.0, 0.0, 0.0},
-      velocity_km_s: {0.0, 0.0, 0.0},
-      light_time_seconds: 0.0,
-      ecliptic_longitude: 125.04,
-      ecliptic_latitude: 0.0,
-      distance_au: 0.0
-    },
     {:true_node, 0.0} => %{
-      spice_target: nil,
+      spice_target: "TRUE_NODE",
       spice_id: nil,
       target_kind: :lunar_node,
       calculation: :true_lunar_node,
@@ -91,34 +101,55 @@ defmodule Angelus.CPortStub do
       ecliptic_longitude: 125.08,
       ecliptic_latitude: 0.0,
       distance_au: 0.0
+    },
+    {:lilith, 0.0} => %{
+      spice_target: "LILITH",
+      spice_id: nil,
+      target_kind: :lunar_apogee,
+      calculation: :mean_lunar_apogee,
+      position_km: {0.0, 0.0, 0.0},
+      velocity_km_s: {0.0, 0.0, 0.0},
+      light_time_seconds: 0.0,
+      ecliptic_longitude: 305.04,
+      ecliptic_latitude: 0.0,
+      distance_au: 0.0
     }
   }
 
   @impl true
   def get_ephemeride(%DateTime{} = datetime, body, opts) when is_list(opts) do
+    with {:ok, et} <- fetch_et(datetime),
+         {:ok, data} <- fetch_state(body, et) do
+      data =
+        data
+        |> Map.put(:kernel_metadata, @kernel_metadata)
+        |> convert_angles(opts)
+
+      {:ok, Map.put(data, :et, et)}
+    end
+  end
+
+  defp fetch_et(datetime) do
     case Map.fetch(@et_map, datetime) do
-      {:ok, et} ->
-        case Map.fetch(@state_map, {body, et}) do
-          {:ok, data} ->
-            data = Map.put(data, :kernel_metadata, @kernel_metadata)
+      {:ok, et} -> {:ok, et}
+      :error -> {:error, {:stub_unknown_datetime, datetime}}
+    end
+  end
 
-            # Convert angles to radians when :rad present in opts
-            data =
-              if :rad in opts do
-                Map.update!(data, :ecliptic_longitude, fn deg -> deg * :math.pi() / 180.0 end)
-                |> Map.update!(:ecliptic_latitude, fn deg -> deg * :math.pi() / 180.0 end)
-              else
-                data
-              end
+  defp fetch_state(body, et) do
+    case Map.fetch(@state_map, {body, et}) do
+      {:ok, data} -> {:ok, data}
+      :error -> {:error, {:stub_unknown_state, {body, et}}}
+    end
+  end
 
-            {:ok, Map.put(data, :et, et)}
-
-          :error ->
-            {:error, {:stub_unknown_state, {body, et}}}
-        end
-
-      :error ->
-        {:error, {:stub_unknown_datetime, datetime}}
+  defp convert_angles(data, opts) do
+    if :rad in opts do
+      data
+      |> Map.update!(:ecliptic_longitude, fn deg -> deg * :math.pi() / 180.0 end)
+      |> Map.update!(:ecliptic_latitude, fn deg -> deg * :math.pi() / 180.0 end)
+    else
+      data
     end
   end
 end

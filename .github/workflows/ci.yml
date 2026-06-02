@@ -15,17 +15,38 @@ env:
   MIX_ENV: test
   ANGELUS_FORCE_BUILD: "1"
 
+permissions:
+  contents: read
+
 jobs:
-  ci:
-    name: CI
+  zizmor:
+    name: zizmor
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
-      - uses: erlef/setup-beam@v1
+      - name: Audit GitHub Actions workflows
+        uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
+        with:
+          advanced-security: false
+          inputs: .github/workflows
+
+  ci:
+    name: CI
+    needs: zizmor
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -36,27 +57,27 @@ jobs:
           sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
       - name: Cache deps
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: deps
           key: deps-${{ hashFiles('mix.lock') }}
           restore-keys: deps-
 
       - name: Cache _build
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: _build
           key: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
 
       - name: Cache cspice subproject
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: native/subprojects/cspice
           key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Cache PLT (Dialyzer)
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: priv/plts
           key: plts-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}

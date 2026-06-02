@@ -1,7 +1,7 @@
 defmodule Angelus.EphemerisTest do
   use ExUnit.Case, async: false
 
-  @spice_mock Angelus.CPortStub
+  @spice_mock Angelus.MotorStub
 
   test "position accepts only an atom body" do
     assert Angelus.Ephemeris.position([:sun], ~U[1990-05-24 06:30:00Z], adapter: @spice_mock) ==
@@ -55,10 +55,15 @@ defmodule Angelus.EphemerisTest do
            ) ==
              {:error, {:duplicate_body, :sun}}
 
-    assert Angelus.Ephemeris.positions([:sun, :ceres], ~U[1990-05-24 06:30:00Z],
+    assert Angelus.Ephemeris.positions([:sun, :sedna], ~U[1990-05-24 06:30:00Z],
              adapter: @spice_mock
            ) ==
-             {:error, {:unsupported_body, :ceres}}
+             {:error, {:unsupported_body, :sedna}}
+
+    assert Angelus.Ephemeris.positions([:mean_node], ~U[2000-01-01 12:00:00Z],
+             adapter: @spice_mock
+           ) ==
+             {:error, {:unsupported_body, :mean_node}}
   end
 
   test "positions rejects out of range datetimes before native calls" do
@@ -89,22 +94,6 @@ defmodule Angelus.EphemerisTest do
     assert position.metadata.public_range == %{from: ~D[1900-01-01], to: ~D[2100-01-24]}
   end
 
-  test "positions returns mean_node with ecliptic longitude and zero latitude/distance" do
-    assert {:ok, %{mean_node: position}} =
-             Angelus.Ephemeris.positions([:mean_node], ~U[2000-01-01 12:00:00Z],
-               adapter: @spice_mock
-             )
-
-    assert %Angelus.Ephemeris.BodyPosition{} = position
-    assert position.body == :mean_node
-    assert position.spice_target == nil
-    assert position.target_kind == :lunar_node
-    assert position.latitude == 0.0
-    assert position.distance_au == 0.0
-    # Mean node at J2000.0 ≈ 125.04° (rounded stub value)
-    assert_in_delta position.longitude, 125.04, 0.01
-  end
-
   test "positions returns true_node with ecliptic longitude and zero latitude/distance" do
     assert {:ok, %{true_node: position}} =
              Angelus.Ephemeris.positions([:true_node], ~U[2000-01-01 12:00:00Z],
@@ -113,7 +102,7 @@ defmodule Angelus.EphemerisTest do
 
     assert %Angelus.Ephemeris.BodyPosition{} = position
     assert position.body == :true_node
-    assert position.spice_target == nil
+    assert position.spice_target == "TRUE_NODE"
     assert position.target_kind == :lunar_node
     assert position.latitude == 0.0
     assert position.distance_au == 0.0
@@ -121,15 +110,31 @@ defmodule Angelus.EphemerisTest do
     assert_in_delta position.longitude, 125.08, 0.01
   end
 
-  test "positions can request mean_node and true_node together" do
-    assert {:ok, %{mean_node: mean_pos, true_node: true_pos}} =
-             Angelus.Ephemeris.positions([:mean_node, :true_node], ~U[2000-01-01 12:00:00Z],
+  test "positions returns lilith with ecliptic longitude and zero latitude/distance" do
+    assert {:ok, %{lilith: position}} =
+             Angelus.Ephemeris.positions([:lilith], ~U[2000-01-01 12:00:00Z],
                adapter: @spice_mock
              )
 
-    assert mean_pos.target_kind == :lunar_node
+    assert %Angelus.Ephemeris.BodyPosition{} = position
+    assert position.body == :lilith
+    assert position.spice_target == "LILITH"
+    assert position.target_kind == :lunar_apogee
+    assert position.latitude == 0.0
+    assert position.distance_au == 0.0
+    assert_in_delta position.longitude, 305.04, 0.01
+  end
+
+  test "positions can request special ephemerides and chiron together" do
+    assert {:ok, %{true_node: true_pos, lilith: lilith_pos, chiron: chiron_pos}} =
+             Angelus.Ephemeris.positions(
+               [:true_node, :lilith, :chiron],
+               ~U[2000-01-01 12:00:00Z],
+               adapter: @spice_mock
+             )
+
     assert true_pos.target_kind == :lunar_node
-    # True node should differ from mean node due to nutation correction
-    assert mean_pos.longitude != true_pos.longitude
+    assert lilith_pos.target_kind == :lunar_apogee
+    assert chiron_pos.target_kind == :minor_planet
   end
 end

@@ -5,14 +5,7 @@
 #ifndef ANGELUS_ASTRO_RESULT_H
 #define ANGELUS_ASTRO_RESULT_H
 
-typedef struct {
-  double state_km[6];        /* {x, y, z, vx, vy, vz} km / km.s^-1 */
-  double distance_au;        /* |r| in AU */
-  double ecliptic_longitude; /* degrees [0, 360) unless caller requested rad */
-  double ecliptic_latitude; /* degrees (-90, +90] unless caller requested rad */
-  double light_time_seconds; /* one-way light time */
-  double et;                 /* ephemeris time used */
-} AstroState;
+#include "state.h"
 
 typedef struct {
   int ok;
@@ -27,7 +20,7 @@ typedef struct {
 
 typedef struct {
   int ok;
-  AstroState state;
+  AngelusGeocentricState state;
   char error[1024];
 } AstroResult;
 

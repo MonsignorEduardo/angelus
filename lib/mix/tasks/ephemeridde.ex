@@ -13,7 +13,15 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
     :saturn,
     :uranus,
     :neptune,
-    :pluto
+    :pluto,
+    :true_node,
+    :lilith,
+    :chiron,
+    :ceres,
+    :pallas,
+    :juno,
+    :vesta,
+    :eris
   ]
 
   @doc "Generates an ephemeris for all supported bodies at the given UTC datetime."
@@ -21,10 +29,20 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
   @spec run([String.t()]) :: :ok | no_return()
   def run(args) do
     datetime = parse_args!(args)
+    Logger.configure(level: :debug)
 
+    Logger.configure_backend(:console,
+      format: "$time $metadata[$level] $message\n",
+      metadata: :all
+    )
+
+    Mix.shell().info("Starting Angelus app...")
     Mix.Task.run("app.start")
 
+    Mix.shell().info("Loading SPICE kernels...")
+
     with {:ok, _metadata} <- Angelus.load_kernels(replace: true),
+         _ <- Mix.shell().info("Computing ephemeris for #{length(@bodies)} bodies..."),
          {:ok, positions} <- Angelus.positions(@bodies, datetime) do
       print_positions(datetime, positions)
     else
@@ -80,6 +98,7 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
     end)
   end
 
+  @spec usage!() :: no_return()
   defp usage! do
     Mix.raise(
       "usage: mix angelus.ephemeridde DATETIME_UTC, for example: mix angelus.ephemeridde 1998-07-18T05:00:00Z"

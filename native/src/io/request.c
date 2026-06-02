@@ -24,12 +24,8 @@ static ActionName action_name(const char *op) {
     return ACTION_CLEAR_KERNELS;
   if (strcmp(op, "load_kernels") == 0)
     return ACTION_LOAD_KERNELS;
-  if (strcmp(op, "load_default_kernels") == 0)
-    return ACTION_LOAD_DEFAULT_KERNELS;
   if (strcmp(op, "ephemeride") == 0)
     return ACTION_EPHEMERIDE;
-  if (strcmp(op, "lunar_node") == 0)
-    return ACTION_LUNAR_NODE;
   return ACTION_UNKNOWN;
 }
 
@@ -73,23 +69,12 @@ ParsedAction parse_packet(const char *json) {
   case ACTION_LOAD_KERNELS:
     action.args.load_kernels = parse_load_kernels(root);
     break;
-  case ACTION_LOAD_DEFAULT_KERNELS:
-    action.args.load_default_kernels.base_path =
-        request_string(root, "base_path", "");
-    break;
   case ACTION_EPHEMERIDE:
     action.args.ephemeride.target = request_string(root, "target", "");
     action.args.ephemeride.utc = request_string(root, "utc", "");
-    action.args.ephemeride.units = request_string(root, "units", "deg");
     action.args.ephemeride.observer = request_string(root, "observer", "EARTH");
     action.args.ephemeride.frame = request_string(root, "frame", "ECLIPJ2000");
     action.args.ephemeride.abcorr = request_string(root, "abcorr", "LT+S");
-    break;
-  case ACTION_LUNAR_NODE:
-    action.args.lunar_node.calculation =
-        request_string(root, "calculation", "");
-    action.args.lunar_node.utc = request_string(root, "utc", "");
-    action.args.lunar_node.units = request_string(root, "units", "deg");
     break;
   case ACTION_UNKNOWN:
     action.error = "unknown op";

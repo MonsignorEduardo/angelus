@@ -1,7 +1,7 @@
-defmodule Angelus.CPort.KernelSetTest do
+defmodule Angelus.Motor.KernelSetTest do
   use ExUnit.Case, async: true
 
-  alias Angelus.CPort.KernelSet
+  alias Angelus.Motor.KernelSet
 
   @required_files [
     "naif0012.tls",
@@ -15,13 +15,13 @@ defmodule Angelus.CPort.KernelSetTest do
     "ura184_part-2.bsp",
     "ura184_part-3.bsp",
     "nep105.bsp",
-    "plu060.bsp"
-  ]
-  @core_files [
-    "naif0012.tls",
-    "pck00011.tpc",
-    "gm_de440.tpc",
-    "de442.bsp"
+    "plu060.bsp",
+    "20002060.bsp",
+    "20000001.bsp",
+    "20000002.bsp",
+    "20000003.bsp",
+    "20000004.bsp",
+    "20136199.bsp"
   ]
 
   # ── required_files / default_paths ──────────────────────────────────────
@@ -30,20 +30,13 @@ defmodule Angelus.CPort.KernelSetTest do
     assert KernelSet.required_files() == @required_files
   end
 
-  test "required_files returns the core v0.1 kernel list" do
-    assert KernelSet.required_files(:core) == @core_files
-  end
-
   test "default_paths joins base_path with each required file" do
     paths = KernelSet.default_paths("/base")
     assert length(paths) == length(@required_files)
     assert "/base/naif0012.tls" in paths
     assert "/base/de442.bsp" in paths
     assert "/base/ura184_part-1.bsp" in paths
-  end
-
-  test "default_paths supports the core profile" do
-    assert KernelSet.default_paths("/base", :core) == Enum.map(@core_files, &"/base/#{&1}")
+    assert "/base/20002060.bsp" in paths
   end
 
   # ── validate whitelist ───────────────────────────────────────────────────
@@ -111,19 +104,12 @@ defmodule Angelus.CPort.KernelSetTest do
 
   # ── metadata ────────────────────────────────────────────────────────────
 
-  test "metadata includes ephemeris :de442 and kernel_policy :default_modern" do
+  test "metadata includes ephemeris :de442 and kernel_policy :default" do
     meta = KernelSet.metadata(fake_paths())
     assert meta.ephemeris == :de442
-    assert meta.kernel_policy == :default_modern
-    assert meta.profile == :full
+    assert meta.kernel_policy == :default
+    refute Map.has_key?(meta, :profile)
     assert meta.public_range == %{from: ~D[1900-01-01], to: ~D[2100-01-24]}
-  end
-
-  test "metadata supports core profile" do
-    meta = KernelSet.metadata(fake_paths(:core))
-    assert meta.kernel_policy == :core
-    assert meta.profile == :core
-    assert Enum.map(meta.kernels, & &1.file) == @core_files
   end
 
   test "metadata kernels list has correct types" do
@@ -134,16 +120,34 @@ defmodule Angelus.CPort.KernelSetTest do
     assert :spk in types
   end
 
+  test "metadata includes minor planet kernels" do
+    meta = KernelSet.metadata(fake_paths())
+
+    expected = [
+      {"20002060.bsp", "CHIRON", 20_002_060},
+      {"20000001.bsp", "CERES", 20_000_001},
+      {"20000002.bsp", "PALLAS", 20_000_002},
+      {"20000003.bsp", "JUNO", 20_000_003},
+      {"20000004.bsp", "VESTA", 20_000_004},
+      {"20136199.bsp", "ERIS", 20_136_199}
+    ]
+
+    Enum.each(expected, fn {file, target, spice_id} ->
+      assert Enum.any?(meta.kernels, fn kernel ->
+               match?(
+                 %{file: ^file, target: ^target, spice_id: ^spice_id, role: :minor_planet},
+                 kernel
+               )
+             end)
+    end)
+  end
+
   # ── Helpers ──────────────────────────────────────────────────────────────
 
   # Build a list of fake (non-existing) paths for structural validation tests
   # that don't reach the file-existence check.
   defp fake_paths(extra: extra),
     do: fake_paths() ++ ["/kernels/#{extra}"]
-
-  defp fake_paths(:core) do
-    Enum.map(@core_files, &"/kernels/#{&1}")
-  end
 
   defp fake_paths do
     Enum.map(@required_files, &"/kernels/#{&1}")

@@ -3,65 +3,22 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   use Mix.Task
 
+  alias Angelus.Ephemeris.BodyCatalog
   alias Angelus.Motor.KernelSet
 
   @download_step_bytes 1_000_000
-
-  @kernels %{
-    leapseconds:
-      {"naif0012.tls", "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/naif0012.tls"},
-    planetary_constants:
-      {"pck00011.tpc", "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc"},
-    gravitational_parameters:
-      {"gm_de440.tpc", "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/gm_de440.tpc"},
-    sun:
-      {"de442.bsp", "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de442.bsp"},
-    moon:
-      {"de442.bsp", "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de442.bsp"},
-    mercury:
-      {"de442.bsp", "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de442.bsp"},
-    venus:
-      {"de442.bsp", "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de442.bsp"},
-    mars:
-      {"mar099.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/mar099.bsp"},
-    jupiter:
-      {"jup349.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/jup349.bsp"},
-    saturn:
-      {"sat459.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/sat459.bsp"},
-    uranus_part_1:
-      {"ura184_part-1.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/ura184_part-1.bsp"},
-    uranus_part_2:
-      {"ura184_part-2.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/ura184_part-2.bsp"},
-    uranus_part_3:
-      {"ura184_part-3.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/ura184_part-3.bsp"},
-    neptune:
-      {"nep105.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/nep105.bsp"},
-    pluto:
-      {"plu060.bsp",
-       "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/satellites/plu060.bsp"}
-  }
-
-  @kernel_urls Map.new(@kernels, fn {_target, {file, url}} -> {file, url} end)
 
   @doc "Downloads and validates the v0.1 JPL/NAIF kernel set."
   @impl true
   @spec run([String.t()]) :: :ok | no_return()
   def run(args) do
-    {opts, rest, invalid} = OptionParser.parse(args, strict: [force: :boolean, profile: :string])
+    {opts, rest, invalid} = OptionParser.parse(args, strict: [force: :boolean])
 
     if rest != [] or invalid != [] do
-      Mix.raise("unsupported options. Usage: mix angelus.kernels [--force] [--profile core|full]")
+      Mix.raise("unsupported options. Usage: mix angelus.kernels [--force]")
     end
 
     force? = Keyword.get(opts, :force, false)
-    profile = parse_profile!(Keyword.get(opts, :profile, "full"))
     base_path = Path.join([File.cwd!(), "priv", "kernels"])
 
     {:ok, _apps} = Application.ensure_all_started(:req)
@@ -75,11 +32,11 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
     File.mkdir_p!(base_path)
 
-    required = KernelSet.required_files(profile)
-    planned = plan_downloads(base_path, profile, force?)
-    validate_existing!(base_path, planned, profile, force?)
+    required = KernelSet.required_files()
+    planned = plan_downloads(base_path, force?)
+    validate_existing!(base_path, planned, force?)
     planned = with_content_lengths(planned)
-    print_download_plan(profile, base_path, required, planned, force?)
+    print_download_plan(base_path, required, planned, force?)
 
     temporaries = download_all_to_temp!(base_path, planned)
 
@@ -95,7 +52,7 @@ defmodule Mix.Tasks.Angelus.Kernels do
       {:ok, _metadata} ->
         Owl.IO.puts([
           Owl.Data.tag("ready", :green),
-          " Angelus #{profile} kernels in #{base_path}"
+          " Angelus kernels in #{base_path}"
         ])
 
       {:error, reason} ->
@@ -107,38 +64,49 @@ defmodule Mix.Tasks.Angelus.Kernels do
       reraise exception, __STACKTRACE__
   end
 
-  defp parse_profile!(profile) do
-    case profile do
-      "core" -> :core
-      "full" -> :full
-      _other -> Mix.raise("unsupported profile #{inspect(profile)}. Use core or full")
-    end
-  end
+  defp plan_downloads(base_path, true),
+    do: Enum.map(KernelSet.required_files(), &download_item(base_path, &1))
 
-  defp plan_downloads(base_path, profile, true),
-    do: Enum.map(KernelSet.required_files(profile), &download_item(base_path, &1))
-
-  defp plan_downloads(base_path, profile, false) do
-    KernelSet.required_files(profile)
+  defp plan_downloads(base_path, false) do
+    KernelSet.required_files()
     |> Enum.map(&download_item(base_path, &1))
     |> Enum.reject(fn %{path: path} -> File.exists?(path) end)
   end
 
   defp download_item(base_path, file), do: %{file: file, path: Path.join(base_path, file)}
 
-  defp validate_existing!(base_path, planned, profile, force?) do
+  defp validate_existing!(base_path, planned, force?) do
     planned_files = MapSet.new(Enum.map(planned, fn %{file: file} -> file end))
 
-    KernelSet.required_files(profile)
+    KernelSet.required_files()
     |> Enum.reject(&MapSet.member?(planned_files, &1))
     |> Enum.each(fn file -> validate_file!(Path.join(base_path, file), force?) end)
   end
 
   defp download_to_temp!(base_path, %{file: file, path: final_path}, progress_pid) do
+    case Map.fetch!(BodyCatalog.sources(), file) do
+      %{kind: :bundled, path: source_path} ->
+        copy_to_temp!(base_path, file, final_path, source_path, progress_pid)
+
+      %{kind: :url, url: url} ->
+        download_to_temp!(base_path, file, final_path, url, progress_pid)
+    end
+  end
+
+  defp copy_to_temp!(base_path, file, final_path, source_path, progress_pid) do
+    tmp_path = Path.join(base_path, ".#{file}.tmp")
+    File.rm(tmp_path)
+    File.cp!(source_path, tmp_path)
+    validate_file!(tmp_path, true)
+    send(progress_pid, {:file_done, file})
+    {tmp_path, final_path}
+  end
+
+  defp download_to_temp!(base_path, file, final_path, url, progress_pid) do
     tmp_path = Path.join(base_path, ".#{file}.tmp")
     File.rm(tmp_path)
 
-    response = stream_download!(file, tmp_path, progress_pid)
+    response = stream_download!(url, tmp_path, progress_pid)
 
     unless response.status in 200..299 do
       File.rm(tmp_path)
@@ -180,10 +148,10 @@ defmodule Mix.Tasks.Angelus.Kernels do
     end
   end
 
-  defp stream_download!(file, tmp_path, progress_pid) do
+  defp stream_download!(url, tmp_path, progress_pid) do
     File.open!(tmp_path, [:write, :binary], fn io_device ->
       Req.get!(
-        url: Map.fetch!(@kernel_urls, file),
+        url: url,
         into: fn {:data, data}, {req, resp} ->
           IO.binwrite(io_device, data)
           send(progress_pid, {:bytes, byte_size(data)})
@@ -279,7 +247,7 @@ defmodule Mix.Tasks.Angelus.Kernels do
       increment_progress_bar(state.units_total - state.units_done)
     end
 
-    Owl.LiveScreen.await_render()
+    if live_screen_available?(), do: Owl.LiveScreen.await_render()
     state
   end
 
@@ -290,12 +258,16 @@ defmodule Mix.Tasks.Angelus.Kernels do
   defp increment_progress_bar(_count), do: :ok
 
   defp print_file_done(state, file) do
-    Owl.LiveScreen.capture_stdio(fn ->
+    print = fn ->
       Owl.IO.puts([Owl.Data.tag("downloaded", :green), " ", file])
-    end)
+    end
+
+    if live_screen_available?(), do: Owl.LiveScreen.capture_stdio(print), else: print.()
 
     state
   end
+
+  defp live_screen_available?, do: is_pid(Process.whereis(Owl.LiveScreen))
 
   defp with_content_lengths(planned) do
     Enum.map(planned, fn %{file: file} = item ->
@@ -307,13 +279,13 @@ defmodule Mix.Tasks.Angelus.Kernels do
   defp progress_units(bytes) when bytes > 0, do: max(ceil(bytes / @download_step_bytes), 1)
   defp progress_units(_bytes), do: 0
 
-  defp print_download_plan(profile, base_path, required, planned, force?) do
+  defp print_download_plan(base_path, required, planned, force?) do
     skipped = length(required) - length(planned)
     bytes_total = planned |> Enum.map(& &1.bytes) |> Enum.sum()
 
     Owl.IO.puts([
-      Owl.Data.tag("profile", :light_black),
-      " #{profile}  ",
+      Owl.Data.tag("set", :light_black),
+      " default  ",
       Owl.Data.tag("path", :light_black),
       " #{base_path}"
     ])
@@ -336,15 +308,21 @@ defmodule Mix.Tasks.Angelus.Kernels do
   end
 
   defp content_length!(file) do
-    response = Req.head!(url: Map.fetch!(@kernel_urls, file))
+    case Map.fetch!(BodyCatalog.sources(), file) do
+      %{kind: :bundled, path: path} ->
+        path |> File.stat!() |> Map.fetch!(:size)
 
-    response.headers
-    |> Map.get("content-length", ["0"])
-    |> List.first()
-    |> Integer.parse()
-    |> case do
-      {bytes, ""} -> bytes
-      _other -> 0
+      %{kind: :url, url: url} ->
+        response = Req.head!(url: url)
+
+        response.headers
+        |> Map.get("content-length", ["0"])
+        |> List.first()
+        |> Integer.parse()
+        |> case do
+          {bytes, ""} -> bytes
+          _other -> 0
+        end
     end
   end
 

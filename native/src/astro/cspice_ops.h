@@ -22,6 +22,6 @@ OpResult ops_load_kernels(const char *const *paths, int count);
 /* Single call that accepts UTC ISO8601 and returns a state result. */
 AstroResult ops_ephemeride(const char *target, const char *iso8601,
                            const char *observer, const char *frame,
-                           const char *abcorr, const char *units);
+                           const char *abcorr);
 
 #endif /* ANGELUS_ASTRO_CSPICE_OPS_H */

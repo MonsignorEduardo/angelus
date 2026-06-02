@@ -86,12 +86,12 @@ defmodule Angelus.Ephemeris do
           {:ok, %{atom() => BodyPosition.t()}} | {:error, term()}
   def positions(bodies, datetime, opts \\ []) do
     with :ok <- validate_options(opts),
-         {:ok, adapter} <- fetch_adapter(opts),
          :ok <- validate_datetime(datetime),
          :ok <- validate_body_list_shape(bodies),
          :ok <- validate_duplicates(bodies),
          :ok <- validate_supported_bodies(bodies),
-         :ok <- validate_public_range(datetime) do
+         :ok <- validate_public_range(datetime),
+         {:ok, adapter} <- fetch_adapter(opts) do
       build_positions(bodies, datetime, adapter, opts)
     end
   end

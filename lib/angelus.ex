@@ -13,7 +13,9 @@ defmodule Angelus do
       # 3. Query positions
       {:ok, positions} = Angelus.positions(
         [:sun, :moon, :mercury, :venus, :mars,
-         :jupiter, :saturn, :uranus, :neptune, :pluto],
+         :jupiter, :saturn, :uranus, :neptune, :pluto,
+         :true_node, :lilith, :chiron, :ceres, :pallas,
+         :juno, :vesta, :eris],
         ~U[1990-05-24 06:30:00Z]
       )
 

@@ -8,7 +8,7 @@
 #include "astro/result.h"
 
 int send_ok_str(int id, const char *value);
-int send_ok_state(int id, const AstroState *state);
+int send_ok_state(int id, const AngelusGeocentricState *state);
 int send_error(int id, const char *reason);
 
 #endif /* ANGELUS_IO_RESPONSE_H */

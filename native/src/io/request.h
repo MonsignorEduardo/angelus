@@ -15,9 +15,7 @@ typedef enum {
   ACTION_PING,
   ACTION_CLEAR_KERNELS,
   ACTION_LOAD_KERNELS,
-  ACTION_LOAD_DEFAULT_KERNELS,
   ACTION_EPHEMERIDE,
-  ACTION_LUNAR_NODE,
 } ActionName;
 
 typedef struct {
@@ -26,23 +24,12 @@ typedef struct {
 } LoadKernelsArgs;
 
 typedef struct {
-  const char *base_path;
-} LoadDefaultKernelsArgs;
-
-typedef struct {
   const char *target;
   const char *utc;
-  const char *units;
   const char *observer;
   const char *frame;
   const char *abcorr;
 } EphemerideArgs;
-
-typedef struct {
-  const char *calculation;
-  const char *utc;
-  const char *units;
-} LunarNodeArgs;
 
 typedef struct {
   ActionName name;
@@ -53,9 +40,7 @@ typedef struct {
 
   union {
     LoadKernelsArgs load_kernels;
-    LoadDefaultKernelsArgs load_default_kernels;
     EphemerideArgs ephemeride;
-    LunarNodeArgs lunar_node;
   } args;
 } ParsedAction;
 

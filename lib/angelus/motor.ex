@@ -11,12 +11,6 @@ defmodule Angelus.Motor do
   def default_kernel_files, do: KernelSet.required_files()
 
   @doc """
-  Returns the list of kernel filenames required by a supported v0.1 kernel profile.
-  """
-  @spec default_kernel_files(:core | :full) :: [String.t()]
-  def default_kernel_files(profile), do: KernelSet.required_files(profile)
-
-  @doc """
   Loads the default v0.1 SPICE kernel set from `priv/kernels/`.
 
   Equivalent to `load_kernels([])`.
@@ -57,8 +51,14 @@ defmodule Angelus.Motor do
 
   `target` must be a SPICE target name string. `utc` must be a `%DateTime{}`.
 
-  Options (v0.2):
-    * `:units` — `"deg"` (default) or `"rad"` to control longitude/latitude units
+  Options:
+    * `:state` — `:geocentric` only for now.
+    * `:observer` — `:earth` only for now.
+    * `:frame` — `:eclipj2000`, `:j2000`, `:icrf`, or `:gcrs`.
+    * `:abcorr` — `:none`, `:lt`, `:lt_s`, `:cn`, or `:cn_s`.
+
+  The native worker returns angular fields in radians. Higher-level Elixir APIs
+  perform public unit conversion.
 
   ## Returns
 
@@ -76,23 +76,6 @@ defmodule Angelus.Motor do
   def ephemeride(_target, _utc, _opts), do: {:error, :invalid_args}
 
   @doc """
-  Computes the ecliptic longitude of the Moon's ascending node using ERFA
-  (IAU SOFA algorithms).
-
-  `calculation` must be one of `:mean_lunar_node` or `:true_lunar_node`.
-  Accepts a `%DateTime{}` and optional opts (e.g., `units: "rad"`).
-  """
-  @spec lunar_node(:mean_lunar_node | :true_lunar_node, DateTime.t(), keyword()) ::
-          {:ok, map()} | {:error, term()}
-  def lunar_node(calculation, utc, opts \\ [])
-
-  def lunar_node(calculation, %DateTime{} = utc, opts)
-      when calculation in [:mean_lunar_node, :true_lunar_node] and is_list(opts),
-      do: Server.lunar_node(calculation, utc, opts)
-
-  def lunar_node(_calculation, _utc, _opts), do: {:error, :invalid_args}
-
-  @doc """
   Returns the metadata map for the currently loaded kernel set, or `nil` if no
   kernels have been loaded.
   """
@@ -101,18 +84,13 @@ defmodule Angelus.Motor do
 
   defp load_default_kernels(opts) do
     base_path = Keyword.get(opts, :base_path, Path.join([File.cwd!(), "priv", "kernels"]))
-    profile = Keyword.get(opts, :profile, :full)
     replace? = Keyword.get(opts, :replace, false)
 
     opts
-    |> reject_unknown_options([:base_path, :profile, :replace])
+    |> reject_unknown_options([:base_path, :replace])
     |> case do
       :ok ->
-        if profile in KernelSet.profiles() do
-          Server.load_kernels(KernelSet.default_paths(base_path, profile), replace: replace?)
-        else
-          {:error, {:unsupported_option, {:profile, profile}}}
-        end
+        Server.load_kernels(KernelSet.default_paths(base_path), replace: replace?)
 
       {:error, reason} ->
         {:error, reason}
@@ -127,11 +105,30 @@ defmodule Angelus.Motor do
   end
 
   defp validate_state_options(opts) do
-    allowed = [observer: :earth, frame: "ECLIPJ2000", abcorr: "LT+S"]
+    [
+      fn -> reject_unknown_options(opts, [:state, :observer, :frame, :abcorr]) end,
+      fn -> validate_option(opts, :state, [:geocentric]) end,
+      fn -> validate_option(opts, :observer, [:earth]) end,
+      fn -> validate_option(opts, :frame, [:eclipj2000, :j2000, :icrf, :gcrs]) end,
+      fn -> validate_option(opts, :abcorr, [:none, :lt, :lt_s, :cn, :cn_s]) end
+    ]
+    |> Enum.reduce_while(:ok, fn validate, :ok ->
+      case validate.() do
+        :ok -> {:cont, :ok}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+  end
 
-    case Enum.find(opts, fn {key, value} -> Keyword.get(allowed, key, :unsupported) != value end) do
-      nil -> :ok
-      option -> {:error, {:unsupported_option, option}}
+  defp validate_option(opts, key, allowed_values) do
+    case Keyword.fetch(opts, key) do
+      {:ok, value} ->
+        if Enum.member?(allowed_values, value),
+          do: :ok,
+          else: {:error, {:unsupported_option, {key, value}}}
+
+      :error ->
+        :ok
     end
   end
 end

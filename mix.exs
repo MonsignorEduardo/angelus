@@ -136,7 +136,7 @@ defmodule Angelus.MixProject do
         "credo -A",
         "cmd echo",
         "cmd echo Checking Dialyzer ...",
-        "dialyzer --format github",
+        "dialyzer --format dialyxir",
         "cmd echo",
         "cmd echo Checking tests ...",
         "cmd sh -c 'MIX_ENV=test mix test test/unit'",

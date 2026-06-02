@@ -36,52 +36,26 @@ defmodule Angelus.Motor.WorkerProtocol do
   def encode_load_kernels(id, paths) when is_list(paths),
     do: Jason.encode!(%{"id" => id, "op" => "load_kernels", "paths" => paths})
 
-  @doc "Encodes a load_default_kernels request."
-  @spec encode_load_default_kernels(request_id(), String.t()) :: binary()
-  def encode_load_default_kernels(id, base_path) when is_binary(base_path),
-    do: Jason.encode!(%{"id" => id, "op" => "load_default_kernels", "base_path" => base_path})
-
   @doc """
   Encodes an ephemeride request — a single UTC->ET->state round-trip.
 
   Fields:
     * `target` (string) — SPICE target name
     * `utc` (string) — ISO8601 datetime
-    * `units` (string) — "deg" | "rad"
   """
-  @spec encode_ephemeride(request_id(), String.t(), String.t(), String.t()) :: binary()
-  def encode_ephemeride(id, spice_target, iso8601, units)
-      when is_binary(spice_target) and is_binary(iso8601) and is_binary(units) do
+  @spec encode_ephemeride(request_id(), String.t(), String.t(), map()) :: binary()
+  def encode_ephemeride(id, spice_target, iso8601, opts)
+      when is_binary(spice_target) and is_binary(iso8601) and is_map(opts) do
     Jason.encode!(%{
       "id" => id,
       "op" => "ephemeride",
       "target" => spice_target,
       "utc" => iso8601,
-      "observer" => "EARTH",
-      "frame" => "ECLIPJ2000",
-      "abcorr" => "LT+S",
-      "units" => units
+      "observer" => opts.observer,
+      "frame" => opts.frame,
+      "abcorr" => opts.abcorr
     })
   end
-
-  @doc """
-  Encodes a lunar_node request.
-
-  `calculation` must be one of:
-    - `:mean_lunar_node` — IAU 2003 polynomial (eraFaom03)
-    - `:true_lunar_node` — mean node corrected with IAU 2006/2000A nutation
-  """
-  @spec encode_lunar_node(request_id(), :mean_lunar_node | :true_lunar_node, String.t(), String.t()) :: binary()
-  def encode_lunar_node(id, calculation, iso8601, units)
-      when calculation in [:mean_lunar_node, :true_lunar_node] and is_binary(iso8601) and is_binary(units),
-      do:
-        Jason.encode!(%{
-          "id" => id,
-          "op" => "lunar_node",
-          "calculation" => Atom.to_string(calculation),
-          "utc" => iso8601,
-          "units" => units
-        })
 
   # ── Decoding ────────────────────────────────────────────────────────────
 
@@ -124,21 +98,42 @@ defmodule Angelus.Motor.WorkerProtocol do
   @spec coerce_state(term()) :: {:error, :invalid_state_result}
   def coerce_state(%{
         "state_km" => [x, y, z, vx, vy, vz],
+        "distance_km" => distance_km,
         "distance_au" => distance_au,
-        "ecliptic_longitude" => longitude,
-        "ecliptic_latitude" => latitude,
+        "right_ascension_rad" => right_ascension_rad,
+        "declination_rad" => declination_rad,
+        "ecliptic_longitude_rad" => longitude_rad,
+        "ecliptic_latitude_rad" => latitude_rad,
+        "radial_velocity_km_s" => radial_velocity,
+        "ecliptic_longitude_speed_rad_day" => longitude_speed,
+        "ecliptic_latitude_speed_rad_day" => latitude_speed,
+        "distance_speed_km_s" => distance_speed,
         "light_time_seconds" => light_time,
-        "et" => et
+        "et_seconds" => et_seconds,
+        "frame" => frame,
+        "abcorr" => abcorr
       }) do
     {:ok,
      %{
        position_km: {x * 1.0, y * 1.0, z * 1.0},
        velocity_km_s: {vx * 1.0, vy * 1.0, vz * 1.0},
+       distance_km: distance_km * 1.0,
        distance_au: distance_au * 1.0,
-       ecliptic_longitude: longitude * 1.0,
-       ecliptic_latitude: latitude * 1.0,
+       right_ascension_rad: right_ascension_rad * 1.0,
+       declination_rad: declination_rad * 1.0,
+       ecliptic_longitude_rad: longitude_rad * 1.0,
+       ecliptic_latitude_rad: latitude_rad * 1.0,
+       ecliptic_longitude: longitude_rad * 1.0,
+       ecliptic_latitude: latitude_rad * 1.0,
+       radial_velocity_km_s: radial_velocity * 1.0,
+       ecliptic_longitude_speed_rad_day: longitude_speed * 1.0,
+       ecliptic_latitude_speed_rad_day: latitude_speed * 1.0,
+       distance_speed_km_s: distance_speed * 1.0,
        light_time_seconds: light_time * 1.0,
-       et: et * 1.0
+       et_seconds: et_seconds * 1.0,
+       et: et_seconds * 1.0,
+       frame: frame,
+       abcorr: abcorr
      }}
   end
 

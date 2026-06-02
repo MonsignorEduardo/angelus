@@ -36,9 +36,13 @@ Angelus v0.1 supports these public body atoms:
   :neptune,
   :pluto,
   :true_node,
-  :mean_node,
+  :lilith,
   :chiron,
-  :lilith
+  :ceres,
+  :pallas,
+  :juno,
+  :vesta,
+  :eris
 ]
 ```
 
@@ -89,20 +93,14 @@ mix compile
 
 When installed from Hex on one of those supported platforms, compilation downloads the matching precompiled `angelus_worker`. Local development in this repository can force a source build with `ANGELUS_FORCE_BUILD=1` or `just build`.
 
-Download the default v0.1 kernel set:
+Install the single supported v0.1 kernel set:
 
 ```bash
 mix angelus.kernels
 ```
 
-For faster local development, download the smaller core profile:
-
-```bash
-mix angelus.kernels --profile core
-```
-
-This downloads JPL/NAIF kernels into `priv/kernels/`. It does not load them at
-runtime.
+This downloads the generic JPL/NAIF kernels and copies the bundled JPL Horizons
+minor-planet SPKs into `priv/kernels/`. It does not load them at runtime.
 
 Load kernels explicitly before calculating positions:
 
@@ -130,8 +128,7 @@ Query one body at a time with `Angelus.position/3`:
 sun.longitude
 ```
 
-Generate a CSV-style ephemeris for the ten planet/luminary bodies from the Mix
-task:
+Generate a CSV-style ephemeris for all supported bodies from the Mix task:
 
 ```bash
 mix angelus.ephemeridde 1998-07-18T05:00:00Z
@@ -139,18 +136,8 @@ mix angelus.ephemeridde 1998-07-18T05:00:00Z
 
 ## Kernel Loading
 
-`Angelus.load_kernels/0` loads the default full profile files from
+`Angelus.load_kernels/0` loads the single supported kernel set from
 `priv/kernels/`.
-
-Use `:profile` to load a smaller kernel profile:
-
-```elixir
-Angelus.load_kernels(profile: :core)
-```
-
-The core profile contains `naif0012.tls`, `pck00011.tpc`,
-`gm_de440.tpc`, and `de442.bsp`. The full profile adds the larger companion SPKs
-for body-center targets from Mars through Pluto.
 
 Use `:base_path` when kernels live somewhere else:
 
@@ -180,12 +167,18 @@ Angelus.load_kernels([
   "/opt/angelus/kernels/ura184_part-2.bsp",
   "/opt/angelus/kernels/ura184_part-3.bsp",
   "/opt/angelus/kernels/nep105.bsp",
-  "/opt/angelus/kernels/plu060.bsp"
+  "/opt/angelus/kernels/plu060.bsp",
+  "/opt/angelus/kernels/20002060.bsp",
+  "/opt/angelus/kernels/20000001.bsp",
+  "/opt/angelus/kernels/20000002.bsp",
+  "/opt/angelus/kernels/20000003.bsp",
+  "/opt/angelus/kernels/20000004.bsp",
+  "/opt/angelus/kernels/20136199.bsp"
 ])
 ```
 
-Explicit paths must form either the core or full supported v0.1 kernel set. See
-`Angelus.CPort.default_kernel_files/0` for the default full filenames.
+Explicit paths must form the exact supported v0.1 kernel set. See
+`Angelus.Motor.default_kernel_files/0` for the filenames.
 
 ## Return Values
 
@@ -241,9 +234,10 @@ Unit tests live under `test/unit` and run without CSPICE by using validation-onl
 
 ## Kernel and Data Licensing
 
-Angelus does not include third-party astrological ephemeris code or data.
-JPL/NAIF kernels are downloaded separately and distributed under their
-respective terms.
+Angelus does not include third-party astrological ephemeris code. Generic
+JPL/NAIF kernels are downloaded separately. JPL Horizons minor-planet SPKs are
+bundled as data resources. All kernels remain subject to their respective
+terms.
 
 The source code in this repository is MIT licensed. Native artefacts include
 components from NAIF CSPICE, distributed under NAIF's respective terms.

@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   MIX_ENV: test
@@ -24,6 +24,8 @@ jobs:
   validate-release-ref:
     name: Validate release ref
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
 
     steps:
       - name: Verify release tag exists
@@ -38,9 +40,10 @@ jobs:
           echo "Example: git tag ${RELEASE_TAG} && git push origin ${RELEASE_TAG}"
           exit 1
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
       - name: Verify mix.exs version matches release tag
         run: |
@@ -65,15 +68,18 @@ jobs:
     name: E2E tests
     needs: validate-release-ref
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     env:
       ANGELUS_FORCE_BUILD: "1"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -83,58 +89,72 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
-      - name: Cache deps
-        uses: actions/cache@v5
-        with:
-          path: deps
-          key: deps-${{ hashFiles('mix.lock') }}
-          restore-keys: deps-
-
-      - name: Cache _build
-        uses: actions/cache@v5
-        with:
-          path: _build
-          key: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
-          restore-keys: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
-
-      - name: Cache cspice subproject
-        uses: actions/cache@v5
-        with:
-          path: native/subprojects/cspice
-          key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
-
       - name: Get deps
         run: mix deps.get
 
       - name: E2E tests (CSPICE + Horizons)
         run: mix test test/e2e --include e2e
 
+  leak-check:
+    name: Valgrind leak check
+    needs: validate-release-ref
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      ANGELUS_FORCE_BUILD: "1"
+      ANGELUS_WORKER: ${{ github.workspace }}/_build/test/lib/angelus/priv/angelus_worker
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Install build and leak-check dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip valgrind
+          python3 -m pip install --break-system-packages 'meson>=1.11.1'
+
+      - name: Get deps
+        run: mix deps.get
+
+      - name: Compile native worker
+        run: mix compile
+
+      - name: Run Valgrind leak check
+        run: |
+          elixir scripts/native_leak_check.exs
+
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
-    needs: [e2e-tests, ci]
+    needs: [e2e-tests, ci, leak-check]
     runs-on: macos-14
+    permissions:
+      contents: write
     env:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
       - name: Install build dependencies
         run: brew install cjson meson ninja
-
-      - name: Cache cspice subproject
-        uses: actions/cache@v5
-        with:
-          path: native/subprojects/cspice
-          key: cspice-aarch64-apple-darwin-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Get Elixir deps
         run: mix deps.get
@@ -151,25 +171,27 @@ jobs:
           mix elixir_make.precompile
 
       - name: Upload artefacts
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: _build/precompiled/*.tar.gz
+        run: gh release upload "$RELEASE_TAG" _build/precompiled/*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
-    needs: [e2e-tests, ci]
+    needs: [e2e-tests, ci, leak-check]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     env:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -178,12 +200,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
-
-      - name: Cache cspice subproject
-        uses: actions/cache@v5
-        with:
-          path: native/subprojects/cspice
-          key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Get Elixir deps
         run: mix deps.get
@@ -200,25 +216,27 @@ jobs:
           mix elixir_make.precompile
 
       - name: Upload artefacts
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: _build/precompiled/*.tar.gz
+        run: gh release upload "$RELEASE_TAG" _build/precompiled/*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   # ── Linux (aarch64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux-arm64:
     name: Precompile / aarch64-linux-gnu
-    needs: [e2e-tests, ci]
+    needs: [e2e-tests, ci, leak-check]
     runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
     env:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -227,12 +245,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
-
-      - name: Cache cspice subproject
-        uses: actions/cache@v5
-        with:
-          path: native/subprojects/cspice
-          key: cspice-aarch64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
 
       - name: Get Elixir deps
         run: mix deps.get
@@ -249,25 +261,27 @@ jobs:
           mix elixir_make.precompile
 
       - name: Upload artefacts
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: _build/precompiled/*.tar.gz
+        run: gh release upload "$RELEASE_TAG" _build/precompiled/*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   # ── Generate checksum file ────────────────────────────────────────────────
   checksum:
     name: Generate checksum
     needs: [precompile-macos, precompile-linux, precompile-linux-arm64]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     env:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -281,25 +295,27 @@ jobs:
           cat checksum.exs
 
       - name: Upload checksum file
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: checksum.exs
+        run: gh release upload "$RELEASE_TAG" checksum.exs --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   # ── Publish to Hex.pm ────────────────────────────────────────────────────
   publish:
     name: Publish to Hex.pm
     needs: checksum
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     env:
       MIX_ENV: dev
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -309,7 +325,7 @@ jobs:
 
       - name: Download checksum file
         run: |
-          gh release download ${{ env.RELEASE_TAG }} \
+          gh release download "$RELEASE_TAG" \
             --pattern "checksum.exs" \
             --output checksum.exs
         env:

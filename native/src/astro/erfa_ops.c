@@ -10,10 +10,7 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
-
-#define DEG_360 360.0
-#define RAD_TO_DEG (180.0 / ERFA_DPI)
+#define RAD_2PI (2.0 * ERFA_DPI)
 
 typedef struct {
   double jd1;
@@ -27,15 +24,14 @@ static JulianDate et_to_jd_tt(double et) {
   return result;
 }
 
-static double normalize_deg(double deg) {
-  deg = fmod(deg, DEG_360);
-  if (deg < 0.0)
-    deg += DEG_360;
-  return deg;
+static double normalize_rad(double rad) {
+  rad = fmod(rad, RAD_2PI);
+  if (rad < 0.0)
+    rad += RAD_2PI;
+  return rad;
 }
 
-LunarNodeResult ops_lunar_node(ErfaCalcType calc_type, const char *iso8601,
-                               const char *units) {
+LunarNodeResult ops_lunar_node(ErfaCalcType calc_type, const char *iso8601) {
   LunarNodeResult result = {0};
 
   TimeResult time = astro_utc_to_et(iso8601);
@@ -50,11 +46,11 @@ LunarNodeResult ops_lunar_node(ErfaCalcType calc_type, const char *iso8601,
 
   double t = jd.jd2 / ERFA_DJC;
   double mean_node_rad = eraFaom03(t);
-  double node_deg;
+  double node_rad;
 
   switch (calc_type) {
   case ERFA_CALC_MEAN_LUNAR_NODE:
-    node_deg = mean_node_rad * RAD_TO_DEG;
+    node_rad = mean_node_rad;
     break;
 
   case ERFA_CALC_TRUE_LUNAR_NODE: {
@@ -62,10 +58,13 @@ LunarNodeResult ops_lunar_node(ErfaCalcType calc_type, const char *iso8601,
     eraNut06a(jd.jd1, jd.jd2, &dpsi, &deps);
 
     double eps0 = eraObl06(jd.jd1, jd.jd2);
-    double true_node_rad = mean_node_rad + dpsi * cos(eps0);
-    node_deg = true_node_rad * RAD_TO_DEG;
+    node_rad = mean_node_rad + dpsi * cos(eps0);
     break;
   }
+
+  case ERFA_CALC_MEAN_LUNAR_APOGEE:
+    node_rad = mean_node_rad + ERFA_DPI;
+    break;
 
   default:
     snprintf(result.error, sizeof(result.error), "unknown calc_type: %d",
@@ -73,12 +72,7 @@ LunarNodeResult ops_lunar_node(ErfaCalcType calc_type, const char *iso8601,
     return result;
   }
 
-  double normalized = normalize_deg(node_deg);
-
-  if (units && strcmp(units, "rad") == 0)
-    result.longitude = normalized * (ERFA_DPI / 180.0);
-  else
-    result.longitude = normalized;
+  result.longitude = normalize_rad(node_rad);
 
   result.ok = 1;
   return result;
