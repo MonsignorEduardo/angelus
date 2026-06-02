@@ -6,7 +6,7 @@ defmodule Angelus.Ephemeris.Adapters.Spice do
   alias Angelus.Ephemeris.BodyCatalog
 
   @doc "Returns a full ephemeride BodyPosition for a UTC datetime and body.
-  
+
   Options:
     * `:rad` — return longitude/latitude in radians
     * `:angles` — explicit alias for degrees (default)
