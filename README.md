@@ -230,7 +230,7 @@ just test-e2e          # alias for test-integration
 just clean             # remove local build outputs and downloaded native libraries
 ```
 
-Unit tests live under `test/unit` and run without CSPICE by using validation-only paths or `Angelus.CPortStub`. E2e tests live under `test/e2e` and require the real CSPICE worker, downloaded kernels, and a real JPL Horizons fixture at `test/fixtures/horizons/de442_positions.json`.
+Unit tests live under `test/unit` and run without CSPICE by using validation-only paths or test support mocks. E2e tests live under `test/e2e` and require the real CSPICE worker, downloaded kernels, and a real JPL Horizons fixture at `test/support/fixtures/horizons/de442_positions.json`.
 
 ## Kernel and Data Licensing
 

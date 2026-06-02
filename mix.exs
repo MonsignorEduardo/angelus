@@ -47,6 +47,7 @@ defmodule Angelus.MixProject do
       {:elixir_make, "~> 0.9", runtime: false},
       {:ex_doc, "~> 0.40.3", only: :dev, runtime: false, warn_if_outdated: true},
       {:jason, "~> 1.4"},
+      {:mox, "~> 1.2", only: :test},
       {:nimble_pool, "~> 1.1"},
       {:owl, "~> 0.13"},
       {:req, "~> 0.5"}

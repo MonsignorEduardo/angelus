@@ -3,7 +3,7 @@ defmodule Angelus.Ephemeris.HorizonsValidationTest do
 
   @moduletag :e2e
 
-  @fixture Path.join(["test", "fixtures", "horizons", "de442_positions.json"])
+  @fixture Path.join(["test", "support", "fixtures", "horizons", "de442_positions.json"])
   @default_tolerances %{
     "longitude" => 1.0e-5,
     "latitude" => 1.0e-5,

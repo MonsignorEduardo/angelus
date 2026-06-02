@@ -29,8 +29,8 @@
 
 - `test/test_helper.exs` excludes `:e2e` by default, so plain `mix test` will skip e2e tests.
 - Unit tests should avoid real CSPICE when possible by passing `adapter: Angelus.CPortStub` from `test/support/spice_stub.ex`.
-- E2E tests require the compiled real worker, downloaded kernels, and `test/fixtures/horizons/de442_positions.json` containing real JPL Horizons data.
-- Do not hand-write or placeholder Horizons positions; `test/fixtures/horizons/README.md` explicitly forbids fake fixture values.
+- E2E tests require the compiled real worker, downloaded kernels, and `test/support/fixtures/horizons/de442_positions.json` containing real JPL Horizons data.
+- Do not hand-write or placeholder Horizons positions; `test/support/fixtures/horizons/README.md` explicitly forbids fake fixture values.
 
 ## Release Notes
 

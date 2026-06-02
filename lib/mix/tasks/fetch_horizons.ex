@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Angelus.FetchHorizons do
 
   use Mix.Task
 
-  @fixture Path.join(["test", "fixtures", "horizons", "de442_positions.json"])
+  @fixture Path.join(["test", "support", "fixtures", "horizons", "de442_positions.json"])
 
   @doc "Validates or regenerates local JPL Horizons fixtures according to CLI args."
   @impl true
