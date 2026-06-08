@@ -1,31 +1,23 @@
-defmodule Angelus.Ephemeris.BodyCatalog.Target do
+defmodule Angelus.Astro.Catalog.Target do
   @moduledoc "Struct representing a SPICE target body and its associated metadata."
 
   defstruct [
     :spice_target,
     :spice_id,
-    :target_kind,
-    :calculation
+    :target_kind
   ]
 
   @type t :: %__MODULE__{
           spice_target: String.t() | nil,
           spice_id: integer() | nil,
-          target_kind: atom(),
-          calculation: atom() | nil
+          target_kind: atom()
         }
 end
 
-defmodule Angelus.Ephemeris.BodyCatalog do
+defmodule Angelus.Astro.Catalog do
   @moduledoc "Canonical v0.1 ephemeris body catalog and kernel metadata."
 
-  alias Angelus.Ephemeris.BodyCatalog.Target
-
-  @type source :: %{kind: :url, url: String.t()} | %{kind: :bundled, path: String.t()}
-
-  @ephemeris :de442
-  @kernel_policy :default
-  @public_range %{from: ~D[1900-01-01], to: ~D[2100-01-24]}
+  alias Angelus.Astro.Catalog.Target
 
   @supported_bodies [
     :sun,
@@ -61,49 +53,41 @@ defmodule Angelus.Ephemeris.BodyCatalog do
     pluto: %{spice_target: "PLUTO", spice_id: 999, target_kind: :body_center},
     true_node: %{
       spice_target: "TRUE_NODE",
-      target_kind: :lunar_node,
-      calculation: :true_lunar_node
+      target_kind: :lunar_node
     },
     lilith: %{
       spice_target: "LILITH",
-      target_kind: :lunar_apogee,
-      calculation: :mean_lunar_apogee
+      target_kind: :lunar_apogee
     },
     chiron: %{
       spice_target: "20002060",
       spice_id: 20_002_060,
-      target_kind: :minor_planet,
-      calculation: :spice_body_center
+      target_kind: :minor_planet
     },
     ceres: %{
       spice_target: "20000001",
       spice_id: 20_000_001,
-      target_kind: :minor_planet,
-      calculation: :spice_body_center
+      target_kind: :minor_planet
     },
     pallas: %{
       spice_target: "20000002",
       spice_id: 20_000_002,
-      target_kind: :minor_planet,
-      calculation: :spice_body_center
+      target_kind: :minor_planet
     },
     juno: %{
       spice_target: "20000003",
       spice_id: 20_000_003,
-      target_kind: :minor_planet,
-      calculation: :spice_body_center
+      target_kind: :minor_planet
     },
     vesta: %{
       spice_target: "20000004",
       spice_id: 20_000_004,
-      target_kind: :minor_planet,
-      calculation: :spice_body_center
+      target_kind: :minor_planet
     },
     eris: %{
       spice_target: "20136199",
       spice_id: 20_136_199,
-      target_kind: :minor_planet,
-      calculation: :spice_body_center
+      target_kind: :minor_planet
     }
   }
 
@@ -285,66 +269,20 @@ defmodule Angelus.Ephemeris.BodyCatalog do
   @spec supported_bodies() :: [atom()]
   def supported_bodies, do: @supported_bodies
 
+  @doc "Returns the complete public target catalog keyed by body atom."
+  @spec get_catalog() :: %{atom() => Target.t()}
+  def get_catalog, do: Map.new(@bodies, fn {body, attrs} -> {body, struct(Target, attrs)} end)
+
   @doc "Fetches catalog metadata for a public ephemeris body atom."
-  @spec fetch(atom()) :: {:ok, Target.t()} | {:error, {:unsupported_body, atom()}}
-  def fetch(body) when is_atom(body) do
+  @spec get_metadata(atom()) :: {:ok, Target.t()} | {:error, {:unsupported_body, atom()}}
+  def get_metadata(body) when is_atom(body) do
     case Map.fetch(@bodies, body) do
       {:ok, attrs} -> {:ok, struct(Target, attrs)}
       :error -> {:error, {:unsupported_body, body}}
     end
   end
 
-  @doc "Returns all required kernel filenames in load order."
-  @spec required_files() :: [String.t()]
-  def required_files, do: Enum.map(kernels(), & &1.file)
-
-  @doc "Returns required leap-seconds kernel filenames."
-  @spec lsks() :: [String.t()]
-  def lsks, do: files_by_type(:lsk)
-
-  @doc "Returns required text planetary-constants kernel filenames."
-  @spec tpcs() :: [String.t()]
-  def tpcs, do: files_by_type(:pck)
-
-  @doc "Returns required SPK kernel filenames."
-  @spec spks() :: [String.t()]
-  def spks, do: files_by_type(:spk)
-
-  @doc "Builds absolute kernel paths under `base_path`."
-  @spec default_paths(String.t()) :: [String.t()]
-  def default_paths(base_path) when is_binary(base_path),
-    do: Enum.map(required_files(), &Path.join(base_path, &1))
-
-  @doc "Returns normalized metadata for all configured kernels."
-  @spec kernels() :: [map()]
-  def kernels, do: @kernels
-
-  @doc "Returns configured kernel download/copy sources keyed by filename."
-  @spec sources() :: %{String.t() => source()}
-  def sources, do: Map.new(kernels(), &{&1.file, &1.source})
-
-  @doc "Builds metadata for a validated kernel path list."
-  @spec metadata([String.t()]) :: map()
-  def metadata(paths) do
-    by_file = Map.new(paths, fn path -> {Path.basename(path), path} end)
-
-    %{
-      ephemeris: @ephemeris,
-      kernel_policy: @kernel_policy,
-      public_range: @public_range,
-      kernels: Enum.map(kernels(), &kernel_metadata(&1, Map.fetch!(by_file, &1.file)))
-    }
-  end
-
-  defp files_by_type(type) do
-    kernels()
-    |> Enum.filter(&(&1.type == type))
-    |> Enum.map(& &1.file)
-  end
-
-  defp kernel_metadata(kernel, path) do
-    kernel
-    |> Map.drop([:source])
-    |> Map.put(:path, path)
-  end
+  @doc "Returns the complete configured kernel list in load order."
+  @spec get_kernel() :: [map()]
+  def get_kernel, do: @kernels
 end

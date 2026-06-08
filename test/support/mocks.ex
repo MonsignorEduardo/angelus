@@ -1,1 +1,1 @@
-Mox.defmock(Angelus.Ephemeris.AdapterMock, for: Angelus.Ephemeris.Adapter)
+Mox.defmock(Angelus.Astro.AdapterMock, for: Angelus.Astro.Adapter)

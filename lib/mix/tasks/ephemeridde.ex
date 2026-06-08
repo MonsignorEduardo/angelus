@@ -33,7 +33,19 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
 
     Logger.configure_backend(:console,
       format: "$time $metadata[$level] $message\n",
-      metadata: :all
+      metadata: [
+        :exit_status,
+        :kernel_count,
+        :operation,
+        :pending_request_count,
+        :reason,
+        :replace?,
+        :request_id,
+        :result,
+        :target,
+        :utc,
+        :worker_binary
+      ]
     )
 
     Mix.shell().info("Starting Angelus app...")
@@ -41,9 +53,9 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
 
     Mix.shell().info("Loading SPICE kernels...")
 
-    with {:ok, _metadata} <- Angelus.load_kernels(replace: true),
+    with {:ok, adapter} <- Angelus.load_kernels(replace: true),
          _ <- Mix.shell().info("Computing ephemeris for #{length(@bodies)} bodies..."),
-         {:ok, positions} <- Angelus.positions(@bodies, datetime) do
+         {:ok, positions} <- Angelus.positions(@bodies, datetime, adapter: adapter) do
       print_positions(datetime, positions)
     else
       {:error, {:kernel_file_missing, path}} ->
@@ -80,23 +92,52 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
   end
 
   defp print_positions(datetime, positions) do
-    Mix.shell().info("Ephemeris for #{DateTime.to_iso8601(datetime)}")
+    Mix.shell().info("Astro positions for #{DateTime.to_iso8601(datetime)}")
     Mix.shell().info("")
-    Mix.shell().info("body,longitude_deg,latitude_deg,distance_au")
+    Mix.shell().info("target,position_km,velocity_km_s,distance_au,longitude_rad,speed_rad_day")
 
     Enum.each(@bodies, fn body ->
       position = Map.fetch!(positions, body)
 
-      [
-        body,
-        position.longitude,
-        position.latitude,
-        position.distance_au
-      ]
-      |> Enum.join(",")
+      position
+      |> format_position(body)
       |> Mix.shell().info()
     end)
   end
+
+  defp format_position(%Angelus.Astro.Body{} = position, body) do
+    [
+      body,
+      format_vector(position.position_km),
+      format_vector(position.velocity_km_s),
+      position.distance_au,
+      nil,
+      nil
+    ]
+    |> format_row()
+  end
+
+  defp format_position(%Angelus.Astro.Point{} = position, body) do
+    [
+      body,
+      nil,
+      nil,
+      nil,
+      position.longitude_rad,
+      position.speed_rad_day
+    ]
+    |> format_row()
+  end
+
+  defp format_row(values) do
+    values
+    |> Enum.map(&to_string/1)
+    |> Enum.join(",")
+  end
+
+  defp format_vector({x, y, z}), do: "#{x};#{y};#{z}"
+
+  defp format_vector(nil), do: nil
 
   @spec usage!() :: no_return()
   defp usage! do

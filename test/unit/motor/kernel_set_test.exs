@@ -24,21 +24,6 @@ defmodule Angelus.Motor.KernelSetTest do
     "20136199.bsp"
   ]
 
-  # ── required_files / default_paths ──────────────────────────────────────
-
-  test "required_files returns the complete v0.1 kernel list" do
-    assert KernelSet.required_files() == @required_files
-  end
-
-  test "default_paths joins base_path with each required file" do
-    paths = KernelSet.default_paths("/base")
-    assert length(paths) == length(@required_files)
-    assert "/base/naif0012.tls" in paths
-    assert "/base/de442.bsp" in paths
-    assert "/base/ura184_part-1.bsp" in paths
-    assert "/base/20002060.bsp" in paths
-  end
-
   # ── validate whitelist ───────────────────────────────────────────────────
 
   test "validate rejects unsupported SPK" do
@@ -104,24 +89,31 @@ defmodule Angelus.Motor.KernelSetTest do
 
   # ── metadata ────────────────────────────────────────────────────────────
 
-  test "metadata includes ephemeris :de442 and kernel_policy :default" do
-    meta = KernelSet.metadata(fake_paths())
+  @tag :tmp_dir
+  test "validate returns metadata with ephemeris :de442 and kernel_policy :default", %{
+    tmp_dir: tmp_dir
+  } do
+    assert {:ok, meta} = KernelSet.validate(existing_paths(tmp_dir))
+
     assert meta.ephemeris == :de442
     assert meta.kernel_policy == :default
     refute Map.has_key?(meta, :profile)
     assert meta.public_range == %{from: ~D[1900-01-01], to: ~D[2100-01-24]}
   end
 
-  test "metadata kernels list has correct types" do
-    meta = KernelSet.metadata(fake_paths())
+  @tag :tmp_dir
+  test "validate returns metadata kernels list with correct types", %{tmp_dir: tmp_dir} do
+    assert {:ok, meta} = KernelSet.validate(existing_paths(tmp_dir))
+
     types = Enum.map(meta.kernels, & &1.type)
     assert :lsk in types
     assert :pck in types
     assert :spk in types
   end
 
-  test "metadata includes minor planet kernels" do
-    meta = KernelSet.metadata(fake_paths())
+  @tag :tmp_dir
+  test "validate returns metadata for minor planet kernels", %{tmp_dir: tmp_dir} do
+    assert {:ok, meta} = KernelSet.validate(existing_paths(tmp_dir))
 
     expected = [
       {"20002060.bsp", "CHIRON", 20_002_060},
@@ -151,5 +143,13 @@ defmodule Angelus.Motor.KernelSetTest do
 
   defp fake_paths do
     Enum.map(@required_files, &"/kernels/#{&1}")
+  end
+
+  defp existing_paths(base_path) do
+    Enum.map(@required_files, fn file ->
+      path = Path.join(base_path, file)
+      File.touch!(path)
+      path
+    end)
   end
 end

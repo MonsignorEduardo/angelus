@@ -41,27 +41,18 @@ typedef enum {
 
 typedef struct {
   double state_km[6];
-
-  double distance_km;
-  double distance_au;
-
-  double right_ascension_rad;
-  double declination_rad;
-
-  double ecliptic_longitude_rad;
-  double ecliptic_latitude_rad;
-
-  double radial_velocity_km_s;
-  double ecliptic_longitude_speed_rad_day;
-  double ecliptic_latitude_speed_rad_day;
-  double distance_speed_km_s;
-
   double light_time_seconds;
   double et_seconds;
 
   AngelusReferenceFrame frame;
   AngelusAberrationCorrection abcorr;
-} AngelusGeocentricState;
+} AngelusBodyState;
+
+typedef struct {
+  double longitude_rad;
+  double speed_rad_day;
+  double et_seconds;
+} AngelusPointState;
 
 #ifdef __cplusplus
 }

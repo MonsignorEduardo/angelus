@@ -171,7 +171,22 @@
           {Credo.Check.Warning.ExpensiveEmptyEnumCheck, []},
           {Credo.Check.Warning.IExPry, []},
           {Credo.Check.Warning.IoInspect, []},
-          {Credo.Check.Warning.MissedMetadataKeyInLoggerConfig, []},
+          {Credo.Check.Warning.MissedMetadataKeyInLoggerConfig,
+           [
+             metadata_keys: [
+               :exit_status,
+               :kernel_count,
+               :operation,
+               :pending_request_count,
+               :reason,
+               :replace?,
+               :request_id,
+               :result,
+               :target,
+               :utc,
+               :worker_binary
+             ]
+           ]},
           {Credo.Check.Warning.OperationOnSameValues, []},
           {Credo.Check.Warning.OperationWithConstantResult, []},
           {Credo.Check.Warning.RaiseInsideRescue, []},

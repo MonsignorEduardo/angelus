@@ -3,32 +3,34 @@
 ## Project Shape
 
 - Angelus is an Elixir `~> 1.19` library backed by a native C `angelus_worker` port for NAIF CSPICE/JPL ephemerides.
-- Public Elixir API starts in `lib/angelus.ex`; position validation and body shaping live in `lib/angelus/ephemeris.ex`; native worker ownership lives in `lib/angelus/motor/server.ex`.
-- The native worker is built by `elixir_make`: `mix compile` calls `native/Makefile`, which drives Meson in `native/meson.build`. Do not invoke `make` or `meson` directly unless debugging the build layer.
-- Native protocol uses Erlang ports with `{:packet, 4}` framing and JSON encode/decode in `Angelus.Motor.WorkerProtocol` plus `native/src/protocol/*`.
+- Public API starts in `lib/angelus.ex`; validation/result shaping are in `lib/angelus/astro.ex`; kernel loading and port ownership are in `lib/angelus/motor.ex` and `lib/angelus/motor/server.ex`.
+- `mix compile` drives the native build through `elixir_make` -> `native/Makefile` -> `native/meson.build`; do not run `make` or `meson` directly unless debugging that layer.
+- The worker protocol is JSON over an Erlang port opened with `{:packet, 4}`; Elixir encoding/decoding lives in `Angelus.Motor.WorkerProtocol`, native request/response handling in `native/src/io/*`.
+- `docs/BUILDING.md` has stale native target/path details; prefer `mix.exs`, `justfile`, `native/meson.build`, and CI workflows when they disagree.
 
 ## Commands
 
 - Setup: `mix deps.get` or `mix setup`.
 - Fast unit tests: `mix test test/unit` or `just test`.
-- Single test file: `mix test test/unit/path/to_test.exs`.
+- Single test file: `mix test test/unit/path/to_test.exs`; add `:line` for a focused ExUnit test.
 - Force a local CSPICE/ERFA source build: `ANGELUS_FORCE_BUILD=1 mix compile` or `just build`.
 - CI-equivalent order is `mix format --check-formatted`, `ANGELUS_FORCE_BUILD=1 mix compile --warnings-as-errors`, `mix credo --strict --ignore todo`, `mix dialyzer --format github`, then `mix test test/unit`.
-- Local shortcut `mix consistency` runs forced Elixir compile, Credo, Dialyzer, and unit tests, but it is not identical to CI because CI also runs format check, warnings-as-errors, and strict Credo with `--ignore todo`.
+- `mix consistency` is a local shortcut only: it forces Elixir recompilation, runs `mix credo -A`, Dialyzer with `--format dialyxir`, and unit tests, but skips format check and CI's warnings-as-errors/strict Credo settings.
+- `just credo` runs `mix credo --strict` without CI's `--ignore todo`; `just dialyzer` uses `--format dialyxir`, while CI uses `--format github`.
 - `just test-integration` / `just test-e2e` runs `just build` first, then `mix test test/e2e --include e2e`.
-- `just clean` removes `_build`, `native/build`, and `native/lib`.
+- `just clean` removes `_build`, `native/build`, and `native/lib`; `just check-leaks` builds/runs the Valgrind Docker image.
 
 ## Native Build And Kernels
 
 - Source builds need a C compiler, Meson, Ninja, `curl`, `jq`, and system `libcjson`/`cjson` headers; CI installs `build-essential curl jq meson ninja-build libcjson-dev`.
-- Meson fetches CSPICE and ERFA through `native/subprojects/*.wrap`; build output is installed as `priv/angelus_worker` under the compiled Mix app path.
-- Kernel files are not bundled in Hex artifacts except the Chiron SPK copied by `mix angelus.kernels`; download/install the single supported kernel set with `mix angelus.kernels`.
+- Meson fetches CSPICE and ERFA through `native/subprojects/*.wrap`; the worker installs to the compiled app's `priv/angelus_worker` via `MIX_APP_PATH`.
+- Kernel files are not bundled in Hex packages except bundled Horizons minor-planet SPKs copied by `mix angelus.kernels`; download/install the supported kernel set with `mix angelus.kernels`.
 - Kernel files land in `priv/kernels/`, but runtime code must still call `Angelus.load_kernels/0` or `Angelus.load_kernels/1`; kernels are never loaded implicitly.
 
 ## Tests And Fixtures
 
 - `test/test_helper.exs` excludes `:e2e` by default, so plain `mix test` will skip e2e tests.
-- Unit tests should avoid real CSPICE when possible by passing `adapter: Angelus.CPortStub` from `test/support/spice_stub.ex`.
+- Unit tests should avoid real CSPICE by using `adapter: Angelus.Astro.AdapterMock`; the Mox mock is defined in `test/support/mocks.ex`.
 - E2E tests require the compiled real worker, downloaded kernels, and `test/support/fixtures/horizons/de442_positions.json` containing real JPL Horizons data.
 - Do not hand-write or placeholder Horizons positions; `test/support/fixtures/horizons/README.md` explicitly forbids fake fixture values.
 

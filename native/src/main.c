@@ -3,6 +3,7 @@
  */
 
 #include "astro/cspice_ops.h"
+#include "astro/erfa_ops.h"
 #include "astro/result.h"
 #include "io/packet.h"
 #include "io/request.h"
@@ -30,12 +31,21 @@ static void handle_load_kernels(int id, const LoadKernelsArgs *args) {
     send_error(id, result.error);
 }
 
-static void handle_ephemeride(int id, const EphemerideArgs *args) {
-  AstroResult result = ops_ephemeride(args->target, args->utc, args->observer,
-                                      args->frame, args->abcorr);
+static void handle_body(int id, const BodyArgs *args) {
+  BodyResult result = ops_body(args->target, args->utc, args->observer,
+                               args->frame, args->abcorr);
 
   if (result.ok)
-    send_ok_state(id, &result.state);
+    send_ok_body(id, &result.state);
+  else
+    send_error(id, result.error);
+}
+
+static void handle_math_point(int id, const MathPointArgs *args) {
+  PointResult result = ops_math_point(args->point, args->utc);
+
+  if (result.ok)
+    send_ok_point(id, &result.state);
   else
     send_error(id, result.error);
 }
@@ -51,8 +61,11 @@ static void dispatch_action(ParsedAction *action) {
   case ACTION_LOAD_KERNELS:
     handle_load_kernels(action->id, &action->args.load_kernels);
     break;
-  case ACTION_EPHEMERIDE:
-    handle_ephemeride(action->id, &action->args.ephemeride);
+  case ACTION_BODY:
+    handle_body(action->id, &action->args.body);
+    break;
+  case ACTION_MATH_POINT:
+    handle_math_point(action->id, &action->args.math_point);
     break;
   case ACTION_UNKNOWN: {
     char msg[128];

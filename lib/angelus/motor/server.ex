@@ -3,9 +3,10 @@ defmodule Angelus.Motor.Server do
 
   use GenServer
 
+  require Logger
+
   alias Angelus.Motor.KernelSet
   alias Angelus.Motor.WorkerProtocol
-  require Logger
 
   @worker_bin "angelus_worker"
 
@@ -67,17 +68,20 @@ defmodule Angelus.Motor.Server do
     end
   end
 
-  # ephemeride: return kernels_not_loaded when no kernels (covers nil port too)
-  def handle_call({:ephemeride, _target, _utc, _opts}, _from, %{loaded?: false} = state),
+  # body/math_point: return kernels_not_loaded when no kernels (covers nil port too)
+  def handle_call({:body, _target, _utc, _opts}, _from, %{loaded?: false} = state),
     do: {:reply, {:error, :kernels_not_loaded}, state}
 
-  def handle_call({:ephemeride, target, utc, opts}, from, state) do
+  def handle_call({:math_point, _point, _utc}, _from, %{loaded?: false} = state),
+    do: {:reply, {:error, :kernels_not_loaded}, state}
+
+  def handle_call({:body, target, utc, opts}, from, state) do
     iso8601 = DateTime.to_iso8601(utc)
-    request_opts = ephemeride_request_opts(opts)
+    request_opts = body_request_opts(opts)
     {id, new_state} = next_id(state)
 
-    Logger.debug("Requesting ephemeride", request_id: id, target: target, utc: iso8601)
-    send_to_port(state.port, WorkerProtocol.encode_ephemeride(id, target, iso8601, request_opts))
+    Logger.debug("Requesting body state", request_id: id, target: target, utc: iso8601)
+    send_to_port(state.port, WorkerProtocol.encode_body(id, target, iso8601, request_opts))
 
     meta = %{
       observer: request_opts.observer,
@@ -87,7 +91,19 @@ defmodule Angelus.Motor.Server do
       kernel_metadata: state.metadata
     }
 
-    pending = Map.put(new_state.pending, id, {:ephemeride, from, meta})
+    pending = Map.put(new_state.pending, id, {:body, from, meta})
+    {:noreply, %{new_state | pending: pending}}
+  end
+
+  def handle_call({:math_point, point, utc}, from, state) do
+    iso8601 = DateTime.to_iso8601(utc)
+    {id, new_state} = next_id(state)
+
+    Logger.debug("Requesting math point #{inspect(point)}", request_id: id, utc: iso8601)
+    send_to_port(state.port, WorkerProtocol.encode_math_point(id, point, iso8601))
+
+    meta = %{point: point, kernel_metadata: state.metadata}
+    pending = Map.put(new_state.pending, id, {:math_point, from, meta})
     {:noreply, %{new_state | pending: pending}}
   end
 
@@ -152,9 +168,13 @@ defmodule Angelus.Motor.Server do
   @spec load_kernels([String.t()], keyword()) :: {:ok, map()} | {:error, term()}
   def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
 
-  @doc "Combined UTC -> ET -> state round-trip via the native worker."
-  @spec ephemeride(String.t(), DateTime.t(), keyword()) :: {:ok, map()} | {:error, term()}
-  def ephemeride(target, utc, opts), do: call({:ephemeride, target, utc, opts})
+  @doc "Combined UTC -> ET -> body state round-trip via the native worker."
+  @spec body(String.t(), DateTime.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def body(target, utc, opts), do: call({:body, target, utc, opts})
+
+  @doc "Returns a mathematical point state via the native worker."
+  @spec math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
+  def math_point(point, utc), do: call({:math_point, point, utc})
 
   @doc "Returns metadata for the currently loaded kernel set, if any."
   @spec metadata() :: {:ok, map() | nil}
@@ -258,24 +278,39 @@ defmodule Angelus.Motor.Server do
             {:noreply, %{state | pending: remaining, loaded?: false, metadata: nil}}
         end
 
-      {{:ephemeride, from, meta}, remaining} ->
-        Logger.debug("Ephemeride completed", request_id: id)
-        reply = handle_state_result(result, meta)
+      {{:body, from, meta}, remaining} ->
+        Logger.debug("Body state completed", request_id: id)
+        reply = handle_body_result(result, meta)
+        GenServer.reply(from, reply)
+        {:noreply, %{state | pending: remaining}}
+
+      {{:math_point, from, meta}, remaining} ->
+        Logger.debug("Math point completed", request_id: id)
+        reply = handle_point_result(result, meta)
         GenServer.reply(from, reply)
         {:noreply, %{state | pending: remaining}}
     end
   end
 
-  defp handle_state_result({:ok, raw}, meta) do
-    case WorkerProtocol.coerce_state(raw) do
-      {:ok, coerced} -> {:ok, Map.merge(coerced, state_metadata(meta))}
-      {:error, _} -> {:error, :invalid_state_result}
+  defp handle_body_result({:ok, raw}, meta) do
+    case WorkerProtocol.coerce_body(raw) do
+      {:ok, coerced} -> {:ok, Map.merge(coerced, body_metadata(meta))}
+      {:error, _} -> {:error, :invalid_body_result}
     end
   end
 
-  defp handle_state_result({:error, _} = err, _meta), do: err
+  defp handle_body_result({:error, _} = err, _meta), do: err
 
-  defp state_metadata(meta) do
+  defp handle_point_result({:ok, raw}, meta) do
+    case WorkerProtocol.coerce_point(raw) do
+      {:ok, coerced} -> {:ok, Map.merge(coerced, point_metadata(meta))}
+      {:error, _} -> {:error, :invalid_point_result}
+    end
+  end
+
+  defp handle_point_result({:error, _} = err, _meta), do: err
+
+  defp body_metadata(meta) do
     %{
       observer: meta.observer,
       abcorr: meta.abcorr,
@@ -285,7 +320,14 @@ defmodule Angelus.Motor.Server do
     }
   end
 
-  defp ephemeride_request_opts(opts) do
+  defp point_metadata(meta) do
+    %{
+      point: meta.point,
+      kernel_metadata: meta.kernel_metadata
+    }
+  end
+
+  defp body_request_opts(opts) do
     %{
       state: Keyword.get(opts, :state, :geocentric),
       observer: observer_name(Keyword.get(opts, :observer, :earth)),
@@ -308,7 +350,8 @@ defmodule Angelus.Motor.Server do
   defp abcorr_name(:cn_s), do: "CN+S"
 
   defp reply_to_waiter({:load_kernels, from, _meta}, reply), do: GenServer.reply(from, reply)
-  defp reply_to_waiter({:ephemeride, from, _meta}, reply), do: GenServer.reply(from, reply)
+  defp reply_to_waiter({:body, from, _meta}, reply), do: GenServer.reply(from, reply)
+  defp reply_to_waiter({:math_point, from, _meta}, reply), do: GenServer.reply(from, reply)
   defp reply_to_waiter(:clear_ack, _reply), do: :ok
   defp reply_to_waiter(nil, _reply), do: :ok
 

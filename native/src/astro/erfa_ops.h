@@ -13,6 +13,6 @@ typedef enum {
   ERFA_CALC_MEAN_LUNAR_APOGEE = 2,
 } ErfaCalcType;
 
-LunarNodeResult ops_lunar_node(ErfaCalcType calc_type, const char *iso8601);
+PointResult ops_math_point(const char *point, const char *iso8601);
 
 #endif /* ANGELUS_ASTRO_ERFA_OPS_H */

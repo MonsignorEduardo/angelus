@@ -19,7 +19,7 @@ requests = [
   %{id: 5, payload: ~s({"id":5,"op":"load_kernels","paths":[]}), ok: true},
   %{
     id: 6,
-    payload: ~s({"id":6,"op":"ephemeride","target":"TRUE_NODE","utc":"bad","observer":"EARTH","frame":"ECLIPJ2000","abcorr":"LT+S"}),
+    payload: ~s({"id":6,"op":"math_point","point":"TRUE_NODE","utc":"bad"}),
     ok: false
   }
 ]

@@ -113,13 +113,6 @@ positions.sun.longitude
 positions.moon.distance_au
 ```
 
-Pass `:rad` to return longitude and latitude in radians instead of degrees:
-
-```elixir
-{:ok, positions} =
-  Angelus.positions([:sun, :moon], ~U[1990-05-24 06:30:00Z], [:rad])
-```
-
 Query one body at a time with `Angelus.position/3`:
 
 ```elixir
@@ -127,6 +120,11 @@ Query one body at a time with `Angelus.position/3`:
 
 sun.longitude
 ```
+
+Position calls accept `Angelus.Astro.options()`, which defaults to `[]`. With
+the default SPICE adapter, that means `adapter: Angelus.Astro.Adapters.Spice`,
+`state: :geocentric`, `observer: :earth`, `frame: :eclipj2000`, and
+`abcorr: :lt_s`.
 
 Generate a CSV-style ephemeris for all supported bodies from the Mix task:
 
@@ -185,22 +183,26 @@ Explicit paths must form the exact supported v0.1 kernel set. See
 Position APIs return tagged tuples:
 
 ```elixir
-{:ok, %Angelus.Ephemeris.BodyPosition{}}
-{:ok, %{sun: %Angelus.Ephemeris.BodyPosition{}, moon: %Angelus.Ephemeris.BodyPosition{}}}
+{:ok, %Angelus.Astro.Body{}}
+{:ok, %{sun: %Angelus.Astro.Body{}, moon: %Angelus.Astro.Body{}, true_node: %Angelus.Astro.Point{}}}
 {:error, reason}
 ```
 
-`Angelus.Ephemeris.BodyPosition` includes:
+`Angelus.Astro.Body` includes:
 
 - `:longitude` - geocentric ecliptic longitude in degrees, normalized to
   `[0, 360)`.
 - `:latitude` - geocentric ecliptic latitude in degrees.
 - `:distance_au` - distance from Earth in astronomical units.
 - `:position_km` and `:velocity_km_s` - SPICE state vectors.
-- `:light_time_seconds` - one-way light travel time from target to observer.
+- `:longitude_rad` and `:speed_rad_day` - mathematical point longitude and speed.
+- `:et_seconds` - ephemeris time / TDB seconds past J2000.
 - `:body`, `:spice_target`, `:spice_id`, and `:target_kind` - body catalog
   metadata.
 - `:metadata` - engine, kernel, target, observer, frame, and version metadata.
+
+`Angelus.Astro.Point` includes `:point`, `:longitude_rad`, `:speed_rad_day`,
+`:et_seconds`, and `:metadata`.
 
 ## Development
 

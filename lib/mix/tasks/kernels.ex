@@ -3,7 +3,7 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   use Mix.Task
 
-  alias Angelus.Ephemeris.BodyCatalog
+  alias Angelus.Astro.Catalog
   alias Angelus.Motor.KernelSet
 
   @download_step_bytes 1_000_000
@@ -32,8 +32,9 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
     File.mkdir_p!(base_path)
 
-    required = KernelSet.required_files()
-    planned = plan_downloads(base_path, force?)
+    kernels = Catalog.get_kernel()
+    required = Enum.map(kernels, & &1.file)
+    planned = plan_downloads(base_path, kernels, force?)
     validate_existing!(base_path, planned, force?)
     planned = with_content_lengths(planned)
     print_download_plan(base_path, required, planned, force?)
@@ -64,27 +65,29 @@ defmodule Mix.Tasks.Angelus.Kernels do
       reraise exception, __STACKTRACE__
   end
 
-  defp plan_downloads(base_path, true),
-    do: Enum.map(KernelSet.required_files(), &download_item(base_path, &1))
+  defp plan_downloads(base_path, kernels, true),
+    do: Enum.map(kernels, &download_item(base_path, &1))
 
-  defp plan_downloads(base_path, false) do
-    KernelSet.required_files()
+  defp plan_downloads(base_path, kernels, false) do
+    kernels
     |> Enum.map(&download_item(base_path, &1))
     |> Enum.reject(fn %{path: path} -> File.exists?(path) end)
   end
 
-  defp download_item(base_path, file), do: %{file: file, path: Path.join(base_path, file)}
+  defp download_item(base_path, kernel),
+    do: %{file: kernel.file, source: kernel.source, path: Path.join(base_path, kernel.file)}
 
   defp validate_existing!(base_path, planned, force?) do
     planned_files = MapSet.new(Enum.map(planned, fn %{file: file} -> file end))
 
-    KernelSet.required_files()
+    Catalog.get_kernel()
+    |> Enum.map(& &1.file)
     |> Enum.reject(&MapSet.member?(planned_files, &1))
     |> Enum.each(fn file -> validate_file!(Path.join(base_path, file), force?) end)
   end
 
-  defp download_to_temp!(base_path, %{file: file, path: final_path}, progress_pid) do
-    case Map.fetch!(BodyCatalog.sources(), file) do
+  defp download_to_temp!(base_path, %{file: file, source: source, path: final_path}, progress_pid) do
+    case source do
       %{kind: :bundled, path: source_path} ->
         copy_to_temp!(base_path, file, final_path, source_path, progress_pid)
 
@@ -270,8 +273,8 @@ defmodule Mix.Tasks.Angelus.Kernels do
   defp live_screen_available?, do: is_pid(Process.whereis(Owl.LiveScreen))
 
   defp with_content_lengths(planned) do
-    Enum.map(planned, fn %{file: file} = item ->
-      bytes = content_length!(file)
+    Enum.map(planned, fn %{source: source} = item ->
+      bytes = content_length!(source)
       Map.merge(item, %{bytes: bytes, units: progress_units(bytes)})
     end)
   end
@@ -307,8 +310,8 @@ defmodule Mix.Tasks.Angelus.Kernels do
     end
   end
 
-  defp content_length!(file) do
-    case Map.fetch!(BodyCatalog.sources(), file) do
+  defp content_length!(source) do
+    case source do
       %{kind: :bundled, path: path} ->
         path |> File.stat!() |> Map.fetch!(:size)
 

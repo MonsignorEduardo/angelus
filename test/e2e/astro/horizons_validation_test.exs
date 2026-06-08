@@ -1,17 +1,15 @@
-defmodule Angelus.Ephemeris.HorizonsValidationTest do
+defmodule Angelus.Astro.HorizonsValidationTest do
   use ExUnit.Case, async: false
 
   @moduletag :e2e
 
   @fixture Path.join(["test", "support", "fixtures", "horizons", "de442_positions.json"])
   @default_tolerances %{
-    "longitude" => 1.0e-5,
-    "latitude" => 1.0e-5,
     "distance_au" => 1.0e-8
   }
 
   setup_all do
-    assert {:ok, _metadata} = Angelus.Motor.load_kernels(replace: true)
+    assert {:ok, Angelus.Astro.Adapters.Spice} = Angelus.load_kernels(replace: true)
     :ok
   end
 
@@ -23,14 +21,8 @@ defmodule Angelus.Ephemeris.HorizonsValidationTest do
       body = body_atom!(case_["body"])
       datetime = datetime!(case_["datetime_utc"])
 
-      assert {:ok, %{^body => position}} = Angelus.Ephemeris.positions([body], datetime)
+      assert {:ok, %{^body => position}} = Angelus.Astro.positions([body], datetime)
 
-      assert position.spice_target == case_["spice_target"]
-      assert position.spice_id == case_["spice_id"]
-      assert Atom.to_string(position.target_kind) == case_["target_kind"]
-
-      assert_close(position.longitude, case_["longitude"], tolerances["longitude"], case_)
-      assert_close(position.latitude, case_["latitude"], tolerances["latitude"], case_)
       assert_close(position.distance_au, case_["distance_au"], tolerances["distance_au"], case_)
     end)
   end

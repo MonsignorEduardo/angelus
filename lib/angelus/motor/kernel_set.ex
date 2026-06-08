@@ -1,28 +1,11 @@
 defmodule Angelus.Motor.KernelSet do
   @moduledoc "Validation and metadata for the v0.1 JPL/NAIF kernel set."
 
-  alias Angelus.Ephemeris.BodyCatalog
+  alias Angelus.Astro.Catalog
 
-  @doc "Returns the required leap-seconds kernel filename."
-  @spec lsk() :: String.t()
-  def lsk, do: BodyCatalog.lsks() |> List.first()
-
-  @doc "Returns the required text planetary-constants kernel filenames."
-  @spec tpcs() :: [String.t()]
-  def tpcs, do: BodyCatalog.tpcs()
-
-  @doc "Returns the required SPK kernel filenames."
-  @spec spks() :: [String.t()]
-  def spks, do: BodyCatalog.spks()
-
-  @doc "Returns every kernel filename required by the default v0.1 kernel set."
-  @spec required_files() :: [String.t()]
-  def required_files, do: BodyCatalog.required_files()
-
-  @doc "Builds absolute kernel paths under `base_path` for the default v0.1 kernel set."
-  @spec default_paths(String.t()) :: [String.t()]
-  def default_paths(base_path) when is_binary(base_path),
-    do: BodyCatalog.default_paths(base_path)
+  @ephemeris :de442
+  @kernel_policy :default
+  @public_range %{from: ~D[1900-01-01], to: ~D[2100-01-24]}
 
   @doc "Validates that `paths` contain exactly the supported v0.1 kernel set."
   @spec validate([String.t()]) :: {:ok, map()} | {:error, term()}
@@ -40,10 +23,6 @@ defmodule Angelus.Motor.KernelSet do
   end
 
   def validate(_paths), do: {:error, {:invalid_kernel_set, :invalid_paths}}
-
-  @doc "Builds structured metadata for a validated v0.1 kernel path list."
-  @spec metadata([String.t()]) :: map()
-  def metadata(paths), do: BodyCatalog.metadata(paths)
 
   defp validate_strings(paths) do
     if Enum.all?(paths, &is_binary/1),
@@ -68,13 +47,11 @@ defmodule Angelus.Motor.KernelSet do
 
   defp validate_required_files(basenames) do
     with :ok <- validate_required_tpcs(basenames),
-         :ok <- validate_required_bsp_files(basenames) do
-      :ok
-    end
+         do: validate_required_bsp_files(basenames)
   end
 
   defp validate_required_tpcs(basenames) do
-    case Enum.find(tpcs(), &(&1 not in basenames)) do
+    case Enum.find(files_by_type(:pck), &(&1 not in basenames)) do
       nil -> :ok
       file -> {:error, {:invalid_kernel_set, {:missing_tpc, file}}}
     end
@@ -85,7 +62,7 @@ defmodule Angelus.Motor.KernelSet do
       not Enum.any?(basenames, &String.ends_with?(&1, ".bsp")) ->
         {:error, {:invalid_kernel_set, :missing_bsp}}
 
-      missing = Enum.find(spks(), &(&1 not in basenames)) ->
+      missing = Enum.find(files_by_type(:spk), &(&1 not in basenames)) ->
         {:error, {:invalid_kernel_set, {:missing_bsp, missing}}}
 
       true ->
@@ -106,5 +83,29 @@ defmodule Angelus.Motor.KernelSet do
       nil -> :ok
       path -> {:error, {:kernel_file_missing, path}}
     end
+  end
+
+  defp required_files, do: Enum.map(Catalog.get_kernel(), & &1.file)
+
+  defp files_by_type(type) do
+    Catalog.get_kernel()
+    |> Enum.filter(&(&1.type == type))
+    |> Enum.map(& &1.file)
+  end
+
+  defp metadata(paths) do
+    by_file = Map.new(paths, fn path -> {Path.basename(path), path} end)
+
+    %{ephemeris: @ephemeris, kernel_policy: @kernel_policy, public_range: @public_range}
+    |> Map.put(
+      :kernels,
+      Enum.map(Catalog.get_kernel(), &kernel_metadata(&1, Map.fetch!(by_file, &1.file)))
+    )
+  end
+
+  defp kernel_metadata(kernel, path) do
+    kernel
+    |> Map.drop([:source])
+    |> Map.put(:path, path)
   end
 end

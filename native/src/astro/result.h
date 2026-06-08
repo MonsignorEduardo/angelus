@@ -20,15 +20,14 @@ typedef struct {
 
 typedef struct {
   int ok;
-  AngelusGeocentricState state;
+  AngelusBodyState state;
   char error[1024];
-} AstroResult;
+} BodyResult;
 
 typedef struct {
   int ok;
-  double longitude;
-  double et;
+  AngelusPointState state;
   char error[1024];
-} LunarNodeResult;
+} PointResult;
 
 #endif /* ANGELUS_ASTRO_RESULT_H */

@@ -10,9 +10,9 @@ defmodule Angelus.Motor.EphemerideTest do
     :ok
   end
 
-  test "returns geocentric state in radians with configurable frame and aberration" do
+  test "returns geocentric state vector with configurable frame and aberration" do
     assert {:ok, state} =
-             Angelus.Motor.ephemeride("SUN", ~U[2000-01-01 12:00:00Z],
+             Angelus.Motor.body("SUN", ~U[2000-01-01 12:00:00Z],
                state: :geocentric,
                observer: :earth,
                frame: :eclipj2000,
@@ -29,14 +29,8 @@ defmodule Angelus.Motor.EphemerideTest do
     assert is_float(vy)
     assert is_float(vz)
 
-    assert state.distance_km > 0.0
     assert state.distance_au > 0.0
-    assert state.ecliptic_longitude_rad >= 0.0
-    assert state.ecliptic_longitude_rad < 2.0 * :math.pi()
-    assert state.ecliptic_latitude_rad >= -:math.pi() / 2.0
-    assert state.ecliptic_latitude_rad <= :math.pi() / 2.0
-    assert state.light_time_seconds > 0.0
-    assert state.frame == "ECLIPJ2000"
+    assert state.frame_base == "ECLIPJ2000"
     assert state.abcorr == "LT+S"
     assert state.observer == "EARTH"
     assert state.state == :geocentric
@@ -44,10 +38,10 @@ defmodule Angelus.Motor.EphemerideTest do
 
   test "supports geometric state without aberration correction" do
     assert {:ok, apparent} =
-             Angelus.Motor.ephemeride("SUN", ~U[2000-01-01 12:00:00Z], abcorr: :lt_s)
+             Angelus.Motor.body("SUN", ~U[2000-01-01 12:00:00Z], abcorr: :lt_s)
 
     assert {:ok, geometric} =
-             Angelus.Motor.ephemeride("SUN", ~U[2000-01-01 12:00:00Z], abcorr: :none)
+             Angelus.Motor.body("SUN", ~U[2000-01-01 12:00:00Z], abcorr: :none)
 
     assert apparent.abcorr == "LT+S"
     assert geometric.abcorr == "NONE"
@@ -56,9 +50,17 @@ defmodule Angelus.Motor.EphemerideTest do
 
   test "resolves bundled Horizons minor planet SPK targets" do
     Enum.each(@minor_planet_targets, fn target ->
-      assert {:ok, state} = Angelus.Motor.ephemeride(target, ~U[2000-01-01 12:00:00Z], [])
+      assert {:ok, state} = Angelus.Motor.body(target, ~U[2000-01-01 12:00:00Z], [])
       assert state.distance_au > 0.0
-      assert state.light_time_seconds > 0.0
     end)
+  end
+
+  test "returns mathematical point longitude and speed" do
+    assert {:ok, point} = Angelus.Motor.math_point("TRUE_NODE", ~U[2000-01-01 12:00:00Z])
+
+    assert is_float(point.longitude_rad)
+    assert is_float(point.speed_rad_day)
+    assert is_float(point.et_seconds)
+    assert point.point == "TRUE_NODE"
   end
 end

@@ -3,15 +3,12 @@
  */
 
 #include "cspice_ops.h"
-#include "erfa_ops.h"
 #include "time.h"
 
 #include <cspice/SpiceUsr.h>
 
 #include <stdio.h>
 #include <string.h>
-
-static const double PI = 3.14159265358979323846;
 
 static void fill_error(char *buf, int size, const char *msg) {
   if (buf && size > 0) {
@@ -59,33 +56,6 @@ static AngelusAberrationCorrection parse_abcorr(const char *abcorr) {
   return ANGELUS_ABCORR_LTS;
 }
 
-static double normalize_radians(double angle) {
-  double two_pi = 2.0 * PI;
-  while (angle < 0.0)
-    angle += two_pi;
-  while (angle >= two_pi)
-    angle -= two_pi;
-  return angle;
-}
-
-static AstroResult special_ecliptic_point(const char *iso8601,
-                                          ErfaCalcType calc_type) {
-  AstroResult result = {0};
-  LunarNodeResult calc = ops_lunar_node(calc_type, iso8601);
-
-  if (!calc.ok) {
-    snprintf(result.error, sizeof(result.error), "%s", calc.error);
-    return result;
-  }
-
-  result.state.ecliptic_longitude_rad = calc.longitude;
-  result.state.et_seconds = calc.et;
-  result.state.frame = ANGELUS_FRAME_J2000;
-  result.state.abcorr = ANGELUS_ABCORR_NONE;
-  result.ok = 1;
-  return result;
-}
-
 OpResult ops_clear_kernels(void) {
   OpResult result = {0};
 
@@ -114,16 +84,10 @@ OpResult ops_load_kernels(const char *const *paths, int count) {
   return result;
 }
 
-AstroResult ops_ephemeride(const char *target, const char *iso8601,
-                           const char *observer, const char *frame,
-                           const char *abcorr) {
-  AstroResult result = {0};
-
-  if (strcmp(target, "TRUE_NODE") == 0)
-    return special_ecliptic_point(iso8601, ERFA_CALC_TRUE_LUNAR_NODE);
-
-  if (strcmp(target, "LILITH") == 0)
-    return special_ecliptic_point(iso8601, ERFA_CALC_MEAN_LUNAR_APOGEE);
+BodyResult ops_body(const char *target, const char *iso8601,
+                    const char *observer, const char *frame,
+                    const char *abcorr) {
+  BodyResult result = {0};
 
   TimeResult time = astro_utc_to_et(iso8601);
   if (!time.ok) {
@@ -140,39 +104,12 @@ AstroResult ops_ephemeride(const char *target, const char *iso8601,
     return result;
   }
 
-  SpiceDouble radius, lon_rad, lat_rad;
-  reclat_c(state, &radius, &lon_rad, &lat_rad);
-  if (failed_c()) {
-    get_cspice_error(result.error, sizeof(result.error));
-    return result;
-  }
-
-  SpiceDouble radius_au;
-  convrt_c(radius, "KM", "AU", &radius_au);
-  if (failed_c()) {
-    get_cspice_error(result.error, sizeof(result.error));
-    return result;
-  }
-
-  SpiceDouble range, ra_rad, dec_rad;
-  recrad_c(state, &range, &ra_rad, &dec_rad);
-  if (failed_c()) {
-    get_cspice_error(result.error, sizeof(result.error));
-    return result;
-  }
-
   result.state.state_km[0] = state[0];
   result.state.state_km[1] = state[1];
   result.state.state_km[2] = state[2];
   result.state.state_km[3] = state[3];
   result.state.state_km[4] = state[4];
   result.state.state_km[5] = state[5];
-  result.state.distance_km = radius;
-  result.state.distance_au = radius_au;
-  result.state.right_ascension_rad = normalize_radians(ra_rad);
-  result.state.declination_rad = dec_rad;
-  result.state.ecliptic_longitude_rad = normalize_radians(lon_rad);
-  result.state.ecliptic_latitude_rad = lat_rad;
   result.state.light_time_seconds = lt;
   result.state.et_seconds = time.et;
   result.state.frame = parse_frame(frame);

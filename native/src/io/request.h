@@ -15,7 +15,8 @@ typedef enum {
   ACTION_PING,
   ACTION_CLEAR_KERNELS,
   ACTION_LOAD_KERNELS,
-  ACTION_EPHEMERIDE,
+  ACTION_BODY,
+  ACTION_MATH_POINT,
 } ActionName;
 
 typedef struct {
@@ -29,7 +30,12 @@ typedef struct {
   const char *observer;
   const char *frame;
   const char *abcorr;
-} EphemerideArgs;
+} BodyArgs;
+
+typedef struct {
+  const char *point;
+  const char *utc;
+} MathPointArgs;
 
 typedef struct {
   ActionName name;
@@ -40,7 +46,8 @@ typedef struct {
 
   union {
     LoadKernelsArgs load_kernels;
-    EphemerideArgs ephemeride;
+    BodyArgs body;
+    MathPointArgs math_point;
   } args;
 } ParsedAction;
 
