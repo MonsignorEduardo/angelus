@@ -84,21 +84,21 @@ jobs:
           sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
       - name: Cache deps
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: deps
           key: deps-${{ hashFiles('mix.lock') }}
           restore-keys: deps-
 
       - name: Cache _build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: _build
           key: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
 
       - name: Cache cspice subproject
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: native/subprojects/cspice
           key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
@@ -131,7 +131,7 @@ jobs:
         run: brew install cjson meson ninja
 
       - name: Cache cspice subproject
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: native/subprojects/cspice
           key: cspice-aarch64-apple-darwin-${{ hashFiles('native/subprojects/cspice.wrap') }}
@@ -180,7 +180,7 @@ jobs:
           sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
       - name: Cache cspice subproject
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: native/subprojects/cspice
           key: cspice-x86_64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
@@ -229,7 +229,7 @@ jobs:
           sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
 
       - name: Cache cspice subproject
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: native/subprojects/cspice
           key: cspice-aarch64-linux-gnu-${{ hashFiles('native/subprojects/cspice.wrap') }}
