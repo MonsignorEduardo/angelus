@@ -24,7 +24,7 @@
 
 - Source builds need a C compiler, Meson, Ninja, `curl`, `jq`, and system `libcjson`/`cjson` headers; CI installs `build-essential curl jq meson ninja-build libcjson-dev`.
 - Meson fetches CSPICE and ERFA through `native/subprojects/*.wrap`; the worker installs to the compiled app's `priv/angelus_worker` via `MIX_APP_PATH`.
-- Kernel files are not bundled in Hex packages except bundled Horizons minor-planet SPKs copied by `mix angelus.kernels`; download/install the supported kernel set with `mix angelus.kernels`.
+- Kernel files are not bundled in Hex packages; `mix angelus.kernels` downloads generic kernels and pinned minor-planet SPKs generated through JPL Horizons, then verifies their SHA-256 checksums.
 - Kernel files land in `priv/kernels/`, but runtime code must still call `Angelus.load_kernels/0` or `Angelus.load_kernels/1`; kernels are never loaded implicitly.
 
 ## Tests And Fixtures

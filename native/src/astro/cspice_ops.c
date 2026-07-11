@@ -10,6 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 
+static const char *POSITION_OBSERVER = "EARTH";
+static const char *POSITION_FRAME = "ECLIPJ2000";
+static const char *POSITION_ABCORR = "CN+S";
+
 static void fill_error(char *buf, int size, const char *msg) {
   if (buf && size > 0) {
     strncpy(buf, msg, size - 1);
@@ -25,36 +29,6 @@ static void get_cspice_error(char *buf, int size) {
 }
 
 void set_cspice_errors(void) { erract_c("SET", 4096, "RETURN"); }
-
-static AngelusReferenceFrame parse_frame(const char *frame) {
-  if (strcmp(frame, "ICRF") == 0)
-    return ANGELUS_FRAME_ICRF;
-  if (strcmp(frame, "J2000") == 0)
-    return ANGELUS_FRAME_J2000;
-  if (strcmp(frame, "ECLIPJ2000") == 0)
-    return ANGELUS_FRAME_ECLIPJ2000;
-  if (strcmp(frame, "GCRS") == 0)
-    return ANGELUS_FRAME_GCRS;
-  if (strcmp(frame, "ITRF") == 0)
-    return ANGELUS_FRAME_ITRF;
-  if (strcmp(frame, "TRUE_ECLIPTIC_OF_DATE") == 0)
-    return ANGELUS_FRAME_TRUE_ECLIPTIC_OF_DATE;
-  return ANGELUS_FRAME_J2000;
-}
-
-static AngelusAberrationCorrection parse_abcorr(const char *abcorr) {
-  if (strcmp(abcorr, "NONE") == 0)
-    return ANGELUS_ABCORR_NONE;
-  if (strcmp(abcorr, "LT") == 0)
-    return ANGELUS_ABCORR_LT;
-  if (strcmp(abcorr, "LT+S") == 0)
-    return ANGELUS_ABCORR_LTS;
-  if (strcmp(abcorr, "CN") == 0)
-    return ANGELUS_ABCORR_CN;
-  if (strcmp(abcorr, "CN+S") == 0)
-    return ANGELUS_ABCORR_CNS;
-  return ANGELUS_ABCORR_LTS;
-}
 
 OpResult ops_clear_kernels(void) {
   OpResult result = {0};
@@ -76,6 +50,9 @@ OpResult ops_load_kernels(const char *const *paths, int count) {
     furnsh_c(paths[i]);
     if (failed_c()) {
       get_cspice_error(result.error, sizeof(result.error));
+      kclear_c();
+      if (failed_c())
+        reset_c();
       return result;
     }
   }
@@ -84,9 +61,7 @@ OpResult ops_load_kernels(const char *const *paths, int count) {
   return result;
 }
 
-BodyResult ops_body(const char *target, const char *iso8601,
-                    const char *observer, const char *frame,
-                    const char *abcorr) {
+BodyResult get_position(const char *target, const char *iso8601) {
   BodyResult result = {0};
 
   TimeResult time = astro_utc_to_et(iso8601);
@@ -98,7 +73,8 @@ BodyResult ops_body(const char *target, const char *iso8601,
   SpiceDouble state[6];
   SpiceDouble lt;
 
-  spkezr_c(target, time.et, frame, abcorr, observer, state, &lt);
+  spkezr_c(target, time.et, POSITION_FRAME, POSITION_ABCORR,
+           POSITION_OBSERVER, state, &lt);
   if (failed_c()) {
     get_cspice_error(result.error, sizeof(result.error));
     return result;
@@ -112,8 +88,8 @@ BodyResult ops_body(const char *target, const char *iso8601,
   result.state.state_km[5] = state[5];
   result.state.light_time_seconds = lt;
   result.state.et_seconds = time.et;
-  result.state.frame = parse_frame(frame);
-  result.state.abcorr = parse_abcorr(abcorr);
+  result.state.frame = ANGELUS_FRAME_ECLIPJ2000;
+  result.state.abcorr = ANGELUS_ABCORR_CNS;
 
   result.ok = 1;
   return result;

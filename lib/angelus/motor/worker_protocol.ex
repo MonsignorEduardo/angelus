@@ -43,17 +43,14 @@ defmodule Angelus.Motor.WorkerProtocol do
     * `target` (string) — SPICE target name
     * `utc` (string) — ISO8601 datetime
   """
-  @spec encode_body(request_id(), String.t(), String.t(), map()) :: binary()
-  def encode_body(id, spice_target, iso8601, opts)
-      when is_binary(spice_target) and is_binary(iso8601) and is_map(opts) do
+  @spec encode_body(request_id(), String.t(), String.t()) :: binary()
+  def encode_body(id, spice_target, iso8601)
+      when is_binary(spice_target) and is_binary(iso8601) do
     Jason.encode!(%{
       "id" => id,
       "op" => "body",
       "target" => spice_target,
-      "utc" => iso8601,
-      "observer" => opts.observer,
-      "frame" => opts.frame,
-      "abcorr" => opts.abcorr
+      "utc" => iso8601
     })
   end
 
@@ -83,10 +80,12 @@ defmodule Angelus.Motor.WorkerProtocol do
   @spec decode(term()) :: {:error, :decode_error, term()}
   def decode(binary) when is_binary(binary) do
     case Jason.decode(binary) do
-      {:ok, %{"id" => id, "ok" => true, "result" => result}} ->
+      {:ok, %{"id" => id, "ok" => true, "result" => result}}
+      when is_integer(id) and id > 0 ->
         {:ok, id, result}
 
-      {:ok, %{"id" => id, "ok" => false, "error" => reason}} ->
+      {:ok, %{"id" => id, "ok" => false, "error" => reason}}
+      when is_integer(id) and id > 0 and is_binary(reason) ->
         {:error, id, reason}
 
       {:ok, _unexpected} ->
@@ -111,7 +110,10 @@ defmodule Angelus.Motor.WorkerProtocol do
         "state_km" => [x, y, z, vx, vy, vz],
         "light_time_seconds" => light_time_seconds,
         "et_seconds" => et_seconds
-      }) do
+      })
+      when is_number(x) and is_number(y) and is_number(z) and is_number(vx) and
+             is_number(vy) and is_number(vz) and is_number(light_time_seconds) and
+             is_number(et_seconds) do
     {:ok,
      %{
        position_km: {x * 1.0, y * 1.0, z * 1.0},
@@ -131,7 +133,8 @@ defmodule Angelus.Motor.WorkerProtocol do
         "longitude_rad" => longitude_rad,
         "speed_rad_day" => speed_rad_day,
         "et_seconds" => et_seconds
-      }) do
+      })
+      when is_number(longitude_rad) and is_number(speed_rad_day) and is_number(et_seconds) do
     {:ok,
      %{
        longitude_rad: longitude_rad * 1.0,

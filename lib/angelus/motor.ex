@@ -5,20 +5,6 @@ defmodule Angelus.Motor do
   alias Angelus.Motor.Server
 
   @typedoc """
-  Reference frame accepted by `body/3`.
-
-  Valid values are `:eclipj2000`, `:j2000`, `:icrf`, and `:gcrs`.
-  """
-  @type frame :: :eclipj2000 | :j2000 | :icrf | :gcrs
-
-  @typedoc """
-  Aberration correction accepted by `body/3`.
-
-  Valid values are `:none`, `:lt`, `:lt_s`, `:cn`, and `:cn_s`.
-  """
-  @type abcorr :: :none | :lt | :lt_s | :cn | :cn_s
-
-  @typedoc """
   Keyword option accepted when loading the default v0.1 kernel set.
 
   Valid entries are:
@@ -42,27 +28,6 @@ defmodule Angelus.Motor do
   Unsupported options return `{:error, {:unsupported_option, option}}`.
   """
   @type explicit_kernel_option :: {:replace, boolean()}
-
-  @typedoc """
-  Keyword option accepted by `body/3`.
-
-  Valid entries are:
-
-    * `{:state, :geocentric}` — geocentric state vector.
-    * `{:observer, :earth}` — Earth as the observing body.
-    * `{:frame, frame}` — one of the frames in `t:frame/0`.
-    * `{:abcorr, abcorr}` — one of the aberration corrections in `t:abcorr/0`.
-
-  Defaults are `state: :geocentric`, `observer: :earth`,
-  `frame: :eclipj2000`, and `abcorr: :lt_s`.
-
-  Unsupported options return `{:error, {:unsupported_option, option}}`.
-  """
-  @type body_option ::
-          {:state, :geocentric}
-          | {:observer, :earth}
-          | {:frame, frame()}
-          | {:abcorr, abcorr()}
 
   @doc """
   Returns the list of kernel filenames required by the default v0.1 kernel set.
@@ -105,48 +70,40 @@ defmodule Angelus.Motor do
   """
   @spec load_kernels([String.t()], [explicit_kernel_option()]) :: {:ok, map()} | {:error, term()}
   def load_kernels(paths, opts) when is_list(paths) and is_list(opts) do
-    with :ok <- reject_unknown_options(opts, [:replace]) do
+    with :ok <- validate_keyword_options(opts),
+         :ok <- reject_unknown_options(opts, [:replace]),
+         :ok <- validate_boolean_option(opts, :replace) do
       Server.load_kernels(paths, replace: Keyword.get(opts, :replace, false))
     end
   end
+
+  def load_kernels(_paths, _opts), do: {:error, {:invalid_kernel_set, :invalid_paths}}
 
   @doc """
   Returns the combined UTC -> ET -> body state vector result in a single round-trip
   to the native worker.
 
   `target` must be a SPICE target name string. `utc` must be a `%DateTime{}`.
-
-  ## Options
-
-    * `:state` — `:geocentric` only for now.
-    * `:observer` — `:earth` only for now.
-    * `:frame` — `:eclipj2000`, `:j2000`, `:icrf`, or `:gcrs`.
-    * `:abcorr` — `:none`, `:lt`, `:lt_s`, `:cn`, or `:cn_s`.
-
-  See `t:body_option/0` for the accepted keyword entries.
+  Native position requests always use Earth as observer, geocentric state,
+  the `ECLIPJ2000` frame, and converged Newtonian stellar aberration (`CN+S`).
 
   ## Returns
 
     * `{:ok, map()}` — state map with position, velocity and distance keys.
     * `{:error, :invalid_args}` when arguments are invalid.
     * `{:error, :kernels_not_loaded}` if no kernels have been loaded.
-    * `{:error, {:unsupported_option, term()}}` for unknown options or values.
   """
-  @spec body(String.t(), DateTime.t(), [body_option()]) :: {:ok, map()} | {:error, term()}
-  def body(target, %DateTime{} = utc, opts) when is_binary(target) and is_list(opts) do
-    with :ok <- validate_state_options(opts) do
-      Server.body(target, utc, opts)
-    end
-  end
+  @spec get_body(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
+  def get_body(target, %DateTime{} = utc) when is_binary(target), do: Server.get_body(target, utc)
 
-  def body(_target, _utc, _opts), do: {:error, :invalid_args}
+  def get_body(_target, _utc), do: {:error, :invalid_args}
 
   @doc "Returns a mathematical point longitude/speed result from the native worker."
-  @spec math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
-  def math_point(point, %DateTime{} = utc) when is_binary(point),
-    do: Server.math_point(point, utc)
+  @spec get_math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
+  def get_math_point(point, %DateTime{} = utc) when is_binary(point),
+    do: Server.get_math_point(point, utc)
 
-  def math_point(_point, _utc), do: {:error, :invalid_args}
+  def get_math_point(_point, _utc), do: {:error, :invalid_args}
 
   @doc """
   Returns the metadata map for the currently loaded kernel set, or `nil` if no
@@ -156,18 +113,20 @@ defmodule Angelus.Motor do
   def metadata, do: Server.metadata()
 
   defp load_default_kernels(opts) do
-    base_path = Keyword.get(opts, :base_path, Path.join([File.cwd!(), "priv", "kernels"]))
-    replace? = Keyword.get(opts, :replace, false)
-
-    opts
-    |> reject_unknown_options([:base_path, :replace])
-    |> case do
-      :ok ->
-        Server.load_kernels(default_paths(base_path), replace: replace?)
-
-      {:error, reason} ->
-        {:error, reason}
+    with :ok <- validate_keyword_options(opts),
+         :ok <- reject_unknown_options(opts, [:base_path, :replace]),
+         :ok <- validate_path_option(opts, :base_path),
+         :ok <- validate_boolean_option(opts, :replace),
+         {:ok, default_base_path} <- default_kernel_path() do
+      base_path = Keyword.get(opts, :base_path, default_base_path)
+      Server.load_kernels(default_paths(base_path), replace: Keyword.get(opts, :replace, false))
     end
+  end
+
+  defp validate_keyword_options(opts) do
+    if Keyword.keyword?(opts),
+      do: :ok,
+      else: {:error, {:invalid_options, :expected_keyword_list}}
   end
 
   defp reject_unknown_options(opts, supported) do
@@ -177,36 +136,31 @@ defmodule Angelus.Motor do
     end
   end
 
+  defp validate_boolean_option(opts, key) do
+    case Keyword.fetch(opts, key) do
+      :error -> :ok
+      {:ok, value} when is_boolean(value) -> :ok
+      {:ok, value} -> {:error, {:invalid_option, {key, value}}}
+    end
+  end
+
+  defp validate_path_option(opts, key) do
+    case Keyword.fetch(opts, key) do
+      :error -> :ok
+      {:ok, value} when is_binary(value) and value != "" -> :ok
+      {:ok, value} -> {:error, {:invalid_option, {key, value}}}
+    end
+  end
+
+  defp default_kernel_path do
+    case :code.priv_dir(:angelus) do
+      {:error, reason} -> {:error, {:priv_dir_unavailable, reason}}
+      priv_dir -> {:ok, Path.join(List.to_string(priv_dir), "kernels")}
+    end
+  end
+
   defp default_paths(base_path) when is_binary(base_path) do
     Catalog.get_kernel()
     |> Enum.map(&Path.join(base_path, &1.file))
-  end
-
-  defp validate_state_options(opts) do
-    [
-      fn -> reject_unknown_options(opts, [:state, :observer, :frame, :abcorr]) end,
-      fn -> validate_option(opts, :state, [:geocentric]) end,
-      fn -> validate_option(opts, :observer, [:earth]) end,
-      fn -> validate_option(opts, :frame, [:eclipj2000, :j2000, :icrf, :gcrs]) end,
-      fn -> validate_option(opts, :abcorr, [:none, :lt, :lt_s, :cn, :cn_s]) end
-    ]
-    |> Enum.reduce_while(:ok, fn validate, :ok ->
-      case validate.() do
-        :ok -> {:cont, :ok}
-        {:error, _reason} = error -> {:halt, error}
-      end
-    end)
-  end
-
-  defp validate_option(opts, key, allowed_values) do
-    case Keyword.fetch(opts, key) do
-      {:ok, value} ->
-        if Enum.member?(allowed_values, value),
-          do: :ok,
-          else: {:error, {:unsupported_option, {key, value}}}
-
-      :error ->
-        :ok
-    end
   end
 end

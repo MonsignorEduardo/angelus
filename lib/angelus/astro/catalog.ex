@@ -60,33 +60,33 @@ defmodule Angelus.Astro.Catalog do
       target_kind: :lunar_apogee
     },
     chiron: %{
-      spice_target: "20002060",
-      spice_id: 20_002_060,
+      spice_target: "2002060",
+      spice_id: 2_002_060,
       target_kind: :minor_planet
     },
     ceres: %{
-      spice_target: "20000001",
-      spice_id: 20_000_001,
+      spice_target: "2000001",
+      spice_id: 2_000_001,
       target_kind: :minor_planet
     },
     pallas: %{
-      spice_target: "20000002",
-      spice_id: 20_000_002,
+      spice_target: "2000002",
+      spice_id: 2_000_002,
       target_kind: :minor_planet
     },
     juno: %{
-      spice_target: "20000003",
-      spice_id: 20_000_003,
+      spice_target: "2000003",
+      spice_id: 2_000_003,
       target_kind: :minor_planet
     },
     vesta: %{
-      spice_target: "20000004",
-      spice_id: 20_000_004,
+      spice_target: "2000004",
+      spice_id: 2_000_004,
       target_kind: :minor_planet
     },
     eris: %{
-      spice_target: "20136199",
-      spice_id: 20_136_199,
+      spice_target: "2136199",
+      spice_id: 2_136_199,
       target_kind: :minor_planet
     }
   }
@@ -216,52 +216,82 @@ defmodule Angelus.Astro.Catalog do
       }
     },
     %{
-      file: "20002060.bsp",
+      file: "2002060.bsp",
       type: :spk,
       role: :minor_planet,
       target: "CHIRON",
-      spice_id: 20_002_060,
-      source: %{kind: :bundled, path: Path.expand("native/src/kernels/20002060.bsp", File.cwd!())}
+      spice_id: 2_002_060,
+      source: %{
+        kind: :url,
+        url:
+          "https://github.com/MonsignorEduardo/angelus/releases/download/kernels-v0.1/2002060.bsp",
+        sha256: "fc3b00dc8844b443e21b647dca3c42641ba5fe45679526c783365103f5ab8e74"
+      }
     },
     %{
-      file: "20000001.bsp",
+      file: "2000001.bsp",
       type: :spk,
       role: :minor_planet,
       target: "CERES",
-      spice_id: 20_000_001,
-      source: %{kind: :bundled, path: Path.expand("native/src/kernels/20000001.bsp", File.cwd!())}
+      spice_id: 2_000_001,
+      source: %{
+        kind: :url,
+        url:
+          "https://github.com/MonsignorEduardo/angelus/releases/download/kernels-v0.1/2000001.bsp",
+        sha256: "0e995be446f281632b3101f9e86807bf6bba6839b79f9cf1265495839b6552b3"
+      }
     },
     %{
-      file: "20000002.bsp",
+      file: "2000002.bsp",
       type: :spk,
       role: :minor_planet,
       target: "PALLAS",
-      spice_id: 20_000_002,
-      source: %{kind: :bundled, path: Path.expand("native/src/kernels/20000002.bsp", File.cwd!())}
+      spice_id: 2_000_002,
+      source: %{
+        kind: :url,
+        url:
+          "https://github.com/MonsignorEduardo/angelus/releases/download/kernels-v0.1/2000002.bsp",
+        sha256: "70d503ccb9fcb95af4fb9f1e68347ca24f6457c60851dbae2a178a99b86133d8"
+      }
     },
     %{
-      file: "20000003.bsp",
+      file: "2000003.bsp",
       type: :spk,
       role: :minor_planet,
       target: "JUNO",
-      spice_id: 20_000_003,
-      source: %{kind: :bundled, path: Path.expand("native/src/kernels/20000003.bsp", File.cwd!())}
+      spice_id: 2_000_003,
+      source: %{
+        kind: :url,
+        url:
+          "https://github.com/MonsignorEduardo/angelus/releases/download/kernels-v0.1/2000003.bsp",
+        sha256: "c8d5a694bf4f8fc8dbc7ef5ef1a1a88849eb10b392a19a280ea8526441e544e1"
+      }
     },
     %{
-      file: "20000004.bsp",
+      file: "2000004.bsp",
       type: :spk,
       role: :minor_planet,
       target: "VESTA",
-      spice_id: 20_000_004,
-      source: %{kind: :bundled, path: Path.expand("native/src/kernels/20000004.bsp", File.cwd!())}
+      spice_id: 2_000_004,
+      source: %{
+        kind: :url,
+        url:
+          "https://github.com/MonsignorEduardo/angelus/releases/download/kernels-v0.1/2000004.bsp",
+        sha256: "6638f94e727dfa4fdb757099df11fdf6763b0aa967123033383f53078ec07110"
+      }
     },
     %{
-      file: "20136199.bsp",
+      file: "2136199.bsp",
       type: :spk,
       role: :minor_planet,
       target: "ERIS",
-      spice_id: 20_136_199,
-      source: %{kind: :bundled, path: Path.expand("native/src/kernels/20136199.bsp", File.cwd!())}
+      spice_id: 2_136_199,
+      source: %{
+        kind: :url,
+        url:
+          "https://github.com/MonsignorEduardo/angelus/releases/download/kernels-v0.1/2136199.bsp",
+        sha256: "2d03e6c7e5b93d3b4a39619fa55fa9c2acc0ea5e4ed5975aafb8aa08d0226563"
+      }
     }
   ]
 

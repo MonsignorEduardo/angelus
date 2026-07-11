@@ -13,6 +13,9 @@ defmodule Angelus.Astro.Adapter do
 
   @callback prepare_adapter([opt()]) :: {:ok, module()} | {:error, term()}
 
-  @callback get_ephemeride(DateTime.t(), atom(), keyword(opt)) ::
+  @callback get_position(DateTime.t(), atom()) ::
+              {:ok, Body.t() | Point.t()} | {:error, term()}
+
+  @callback get_position(DateTime.t(), atom(), Angelus.Astro.coordinates()) ::
               {:ok, Body.t() | Point.t()} | {:error, term()}
 end

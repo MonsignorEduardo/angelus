@@ -81,22 +81,20 @@ defmodule Angelus.MixProject do
       maintainers: ["Eduardo Gonzalez"],
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: [
-        "lib",
-        "native/Makefile",
-        "native/fetch-libs.sh",
-        "native/meson.build",
-        "native/patches",
-        "native/src",
-        "native/native_sources.lock",
-        "priv/.gitkeep",
-        "checksum.exs",
-        "mix.exs",
-        "README.md",
-        "BUILDING.md",
-        "THIRD_PARTY_NOTICES.md",
-        "LICENSE"
-      ]
+      files:
+        [
+          "lib",
+          "native/Makefile",
+          "native/meson.build",
+          "native/src",
+          "native/subprojects/cspice.wrap",
+          "native/subprojects/erfa.wrap",
+          "priv/.gitkeep",
+          "mix.exs",
+          "README.md",
+          "THIRD_PARTY_NOTICES.md",
+          "LICENSE"
+        ] ++ if(File.exists?("checksum.exs"), do: ["checksum.exs"], else: [])
     ]
   end
 

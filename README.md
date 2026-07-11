@@ -11,7 +11,7 @@ out of scope for this release.
 
 ## Features
 
-- Geocentric positions in the `ECLIPJ2000` frame.
+- Geocentric positions in the `ECLIPJ2000` frame with `CN+S` aberration correction.
 - Ecliptic longitude, latitude, distance in AU, position vectors, velocity
   vectors, and light-time metadata.
 - Default v0.1 JPL/NAIF kernel policy using DE442 and companion body-center
@@ -99,32 +99,32 @@ Install the single supported v0.1 kernel set:
 mix angelus.kernels
 ```
 
-This downloads the generic JPL/NAIF kernels and copies the bundled JPL Horizons
-minor-planet SPKs into `priv/kernels/`. It does not load them at runtime.
+This downloads the generic JPL/NAIF kernels and pinned JPL Horizons minor-planet
+SPKs into `priv/kernels/`. Every pinned SPK is verified against its catalogued
+SHA-256 checksum. The task does not load kernels at runtime.
 
 Load kernels explicitly before calculating positions:
 
 ```elixir
-{:ok, _metadata} = Angelus.load_kernels()
+{:ok, adapter} = Angelus.load_kernels()
 
-{:ok, positions} = Angelus.positions([:sun, :moon], ~U[1990-05-24 06:30:00Z])
+{:ok, positions} = Angelus.get_positions([:sun, :moon], ~U[1990-05-24 06:30:00Z], adapter)
 
 positions.sun.longitude
 positions.moon.distance_au
 ```
 
-Query one body at a time with `Angelus.position/3`:
+Query one body at a time with `Angelus.get_position/3`:
 
 ```elixir
-{:ok, sun} = Angelus.position(:sun, ~U[2000-01-01 12:00:00Z])
+{:ok, sun} = Angelus.get_position(:sun, ~U[2000-01-01 12:00:00Z], adapter)
 
 sun.longitude
 ```
 
-Position calls accept `Angelus.Astro.options()`, which defaults to `[]`. With
-the default SPICE adapter, that means `adapter: Angelus.Astro.Adapters.Spice`,
-`state: :geocentric`, `observer: :earth`, `frame: :eclipj2000`, and
-`abcorr: :lt_s`.
+Position calls take an explicit adapter and do not accept ephemeris options.
+The SPICE adapter uses geocentric Earth-observed positions in `ECLIPJ2000` with
+converged Newtonian stellar aberration (`CN+S`).
 
 Generate a CSV-style ephemeris for all supported bodies from the Mix task:
 
@@ -166,12 +166,12 @@ Angelus.load_kernels([
   "/opt/angelus/kernels/ura184_part-3.bsp",
   "/opt/angelus/kernels/nep105.bsp",
   "/opt/angelus/kernels/plu060.bsp",
-  "/opt/angelus/kernels/20002060.bsp",
-  "/opt/angelus/kernels/20000001.bsp",
-  "/opt/angelus/kernels/20000002.bsp",
-  "/opt/angelus/kernels/20000003.bsp",
-  "/opt/angelus/kernels/20000004.bsp",
-  "/opt/angelus/kernels/20136199.bsp"
+  "/opt/angelus/kernels/2002060.bsp",
+  "/opt/angelus/kernels/2000001.bsp",
+  "/opt/angelus/kernels/2000002.bsp",
+  "/opt/angelus/kernels/2000003.bsp",
+  "/opt/angelus/kernels/2000004.bsp",
+  "/opt/angelus/kernels/2136199.bsp"
 ])
 ```
 
@@ -237,8 +237,8 @@ Unit tests live under `test/unit` and run without CSPICE by using validation-onl
 ## Kernel and Data Licensing
 
 Angelus does not include third-party astrological ephemeris code. Generic
-JPL/NAIF kernels are downloaded separately. JPL Horizons minor-planet SPKs are
-bundled as data resources. All kernels remain subject to their respective
+JPL/NAIF kernels, including pinned JPL Horizons minor-planet SPKs, are
+downloaded separately. All kernels remain subject to their respective
 terms.
 
 The source code in this repository is MIT licensed. Native artefacts include

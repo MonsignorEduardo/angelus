@@ -13,70 +13,64 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void handle_clear_kernels(int id) {
+static int handle_clear_kernels(int id) {
   OpResult result = ops_clear_kernels();
 
   if (result.ok)
-    send_ok_str(id, "ok");
+    return send_ok_str(id, "ok");
   else
-    send_error(id, result.error);
+    return send_error(id, result.error);
 }
 
-static void handle_load_kernels(int id, const LoadKernelsArgs *args) {
+static int handle_load_kernels(int id, const LoadKernelsArgs *args) {
   OpResult result = ops_load_kernels(args->paths, args->path_count);
 
   if (result.ok)
-    send_ok_str(id, "ok");
+    return send_ok_str(id, "ok");
   else
-    send_error(id, result.error);
+    return send_error(id, result.error);
 }
 
-static void handle_body(int id, const BodyArgs *args) {
-  BodyResult result = ops_body(args->target, args->utc, args->observer,
-                               args->frame, args->abcorr);
+static int handle_body(int id, const BodyArgs *args) {
+  BodyResult result = get_position(args->target, args->utc);
 
   if (result.ok)
-    send_ok_body(id, &result.state);
+    return send_ok_body(id, &result.state);
   else
-    send_error(id, result.error);
+    return send_error(id, result.error);
 }
 
-static void handle_math_point(int id, const MathPointArgs *args) {
+static int handle_math_point(int id, const MathPointArgs *args) {
   PointResult result = ops_math_point(args->point, args->utc);
 
   if (result.ok)
-    send_ok_point(id, &result.state);
+    return send_ok_point(id, &result.state);
   else
-    send_error(id, result.error);
+    return send_error(id, result.error);
 }
 
-static void dispatch_action(ParsedAction *action) {
+static int dispatch_action(ParsedAction *action) {
   switch (action->name) {
   case ACTION_PING:
-    send_ok_str(action->id, "pong");
-    break;
+    return send_ok_str(action->id, "pong");
   case ACTION_CLEAR_KERNELS:
-    handle_clear_kernels(action->id);
-    break;
+    return handle_clear_kernels(action->id);
   case ACTION_LOAD_KERNELS:
-    handle_load_kernels(action->id, &action->args.load_kernels);
-    break;
+    return handle_load_kernels(action->id, &action->args.load_kernels);
   case ACTION_BODY:
-    handle_body(action->id, &action->args.body);
-    break;
+    return handle_body(action->id, &action->args.body);
   case ACTION_MATH_POINT:
-    handle_math_point(action->id, &action->args.math_point);
-    break;
+    return handle_math_point(action->id, &action->args.math_point);
   case ACTION_UNKNOWN: {
     char msg[128];
     snprintf(msg, sizeof(msg), "unknown op: %s", action->op);
-    send_error(action->id, msg);
-    break;
+    return send_error(action->id, msg);
   }
   case ACTION_INVALID:
-    send_error(action->id, action->error);
-    break;
+    return send_error(action->id, action->error);
   }
+
+  return -1;
 }
 
 int main(void) {
@@ -85,9 +79,11 @@ int main(void) {
   char *packet;
   while ((packet = read_packet()) != NULL) {
     ParsedAction action = parse_packet(packet);
-    dispatch_action(&action);
+    int rc = dispatch_action(&action);
     parsed_action_free(&action);
     free(packet);
+    if (rc != 0)
+      return EXIT_FAILURE;
   }
 
   fclose(stdin);

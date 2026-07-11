@@ -9,11 +9,11 @@ defmodule Angelus.Astro.HorizonsValidationTest do
   }
 
   setup_all do
-    assert {:ok, Angelus.Astro.Adapters.Spice} = Angelus.load_kernels(replace: true)
-    :ok
+    assert {:ok, adapter} = Angelus.load_kernels(replace: true)
+    {:ok, adapter: adapter}
   end
 
-  test "SPICE-backed positions match JPL Horizons fixture" do
+  test "SPICE-backed positions match JPL Horizons fixture", %{adapter: adapter} do
     fixture = read_fixture!()
     tolerances = Map.merge(@default_tolerances, Map.get(fixture, "tolerances", %{}))
 
@@ -21,7 +21,7 @@ defmodule Angelus.Astro.HorizonsValidationTest do
       body = body_atom!(case_["body"])
       datetime = datetime!(case_["datetime_utc"])
 
-      assert {:ok, %{^body => position}} = Angelus.Astro.positions([body], datetime)
+      assert {:ok, %{^body => position}} = Angelus.Astro.get_positions([body], datetime, adapter)
 
       assert_close(position.distance_au, case_["distance_au"], tolerances["distance_au"], case_)
     end)

@@ -22,13 +22,13 @@ defmodule Angelus.Astro.Adapters.Spice do
 
   @doc "Returns a public ephemeris result for a UTC datetime."
   @impl true
-  @spec get_ephemeride(DateTime.t(), atom(), keyword()) ::
+  @spec get_position(DateTime.t(), atom()) ::
           {:ok, Body.t() | Point.t()} | {:error, term()}
-  def get_ephemeride(%DateTime{} = utc, target, opts) do
+  def get_position(%DateTime{} = utc, target) do
     with {:ok, metadata} <- Catalog.get_metadata(target) do
       case metadata.target_kind do
         kind when kind in [:body_center, :minor_planet] ->
-          fetch_body(utc, target, metadata, opts)
+          fetch_body(utc, target, metadata)
 
         kind when kind in [:lunar_node, :lunar_apogee] ->
           fetch_point(utc, target, metadata)
@@ -36,16 +36,24 @@ defmodule Angelus.Astro.Adapters.Spice do
     end
   end
 
-  defp fetch_body(utc, body, target, opts) do
-    body_opts = Keyword.drop(opts, [:adapter])
+  @doc "Returns a public topocentric ephemeris result for a UTC datetime."
+  @impl true
+  @spec get_position(DateTime.t(), atom(), Angelus.Astro.coordinates()) ::
+          {:ok, Body.t() | Point.t()} | {:error, term()}
+  def get_position(%DateTime{} = _utc, target, {_latitude, _longitude, _altitude}) do
+    with {:ok, _metadata} <- Catalog.get_metadata(target) do
+      {:error, :topocentric_not_supported}
+    end
+  end
 
-    with {:ok, state} <- Angelus.Motor.body(target.spice_target, utc, body_opts) do
+  defp fetch_body(utc, body, target) do
+    with {:ok, state} <- Angelus.Motor.get_body(target.spice_target, utc) do
       {:ok, build_body(body, state)}
     end
   end
 
   defp fetch_point(utc, point, target) do
-    with {:ok, state} <- Angelus.Motor.math_point(target.spice_target, utc) do
+    with {:ok, state} <- Angelus.Motor.get_math_point(target.spice_target, utc) do
       {:ok, build_point(point, state)}
     end
   end

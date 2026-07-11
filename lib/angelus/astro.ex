@@ -6,29 +6,16 @@ defmodule Angelus.Astro do
 
   @range_from ~D[1900-01-01]
   @range_to ~D[2100-01-24]
-  @default_adapter Angelus.Astro.Adapters.Spice
 
   @typedoc """
-  Ephemeris adapter module implementing `get_ephemeride/3`.
+  Ephemeris adapter module implementing position callbacks.
   """
   @type adapter :: module()
 
   @typedoc """
-  Keyword option accepted by `positions/3` and `Angelus.position/3`.
-
-  Callers normally pass `[]`. `:adapter` defaults to
-  `Angelus.Astro.Adapters.Spice`. With that adapter, the forwarded SPICE
-  options default to `state: :geocentric`, `observer: :earth`,
-  `frame: :eclipj2000`, and `abcorr: :lt_s`.
-
-  Unsupported options return `{:error, {:unsupported_option, option}}`.
+  Topocentric observer coordinates as `{latitude_degrees, longitude_degrees, altitude_meters}`.
   """
-  @type option :: {:adapter, adapter()} | Angelus.Motor.body_option()
-
-  @typedoc """
-  Keyword options accepted by `positions/3` and `Angelus.position/3`.
-  """
-  @type options :: [option()]
+  @type coordinates :: {number(), number(), number()}
 
   @doc """
   Returns geocentric positions for a list of celestial bodies at a UTC datetime.
@@ -37,16 +24,7 @@ defmodule Angelus.Astro do
   catalog. The list must be non-empty and contain no duplicates. `datetime`
   must be a `%DateTime{}` in the UTC timezone.
 
-  ## Options
-
-    * `:adapter` — an alternative ephemeris adapter module implementing the
-      `Angelus.Astro.Adapter` behaviour. Defaults to
-      `Angelus.Astro.Adapters.Spice`.
-    * `:state`, `:observer`, `:frame`, and `:abcorr` — forwarded to the adapter.
-      With the default SPICE adapter, these default to `:geocentric`, `:earth`,
-      `:eclipj2000`, and `:lt_s`, respectively.
-
-  See `t:options/0` for the accepted keyword entries.
+  `adapter` must implement the `Angelus.Astro.Adapter` behaviour.
 
   ## Returns
 
@@ -59,67 +37,75 @@ defmodule Angelus.Astro do
     * `{:error, :invalid_datetime}` / `{:error, :datetime_must_be_utc}` for bad datetimes.
     * `{:error, {:datetime_out_of_range, %{from: Date.t(), to: Date.t()}}}` outside the
       supported range.
-    * `{:error, {:unsupported_option, term()}}` for unknown options.
+    * `{:error, {:invalid_adapter, term()}}` for invalid adapters.
 
   ## Examples
 
-      iex> {:ok, positions} = Angelus.Astro.positions([:sun, :moon], ~U[2000-01-01 12:00:00Z])
+      iex> {:ok, adapter} = Angelus.load_kernels()
+      iex> {:ok, positions} = Angelus.Astro.get_positions([:sun, :moon], ~U[2000-01-01 12:00:00Z], adapter)
       iex> Map.keys(positions)
       [:sun, :moon]
   """
-  @spec positions([atom(), ...], DateTime.t(), options()) ::
+  @spec get_positions([atom(), ...], DateTime.t(), adapter()) ::
           {:ok, %{atom() => Body.t() | Point.t()}} | {:error, term()}
-  def positions(bodies, datetime, opts \\ []) do
-    with :ok <- validate_options(opts),
+  def get_positions(bodies, datetime, adapter) do
+    with {:ok, adapter} <- validate_adapter(adapter, 2),
+         :ok <- validate_datetime(datetime),
+         :ok <- validate_body_list_shape(bodies),
+         :ok <- validate_duplicates(bodies),
+         :ok <- validate_public_range(datetime) do
+      build_positions(bodies, datetime, adapter)
+    end
+  end
+
+  @doc """
+  Returns topocentric positions for a list of celestial bodies at a UTC datetime.
+
+  `coordinates` must be `{latitude_degrees, longitude_degrees, altitude_meters}`.
+  Latitude must be in `[-90, 90]`; longitude must be in `[-180, 180]`.
+  """
+  @spec get_positions([atom(), ...], DateTime.t(), coordinates(), adapter()) ::
+          {:ok, %{atom() => Body.t() | Point.t()}} | {:error, term()}
+  def get_positions(bodies, datetime, coordinates, adapter) do
+    with {:ok, adapter} <- validate_adapter(adapter, 3),
          :ok <- validate_datetime(datetime),
          :ok <- validate_body_list_shape(bodies),
          :ok <- validate_duplicates(bodies),
          :ok <- validate_public_range(datetime),
-         {:ok, adapter} <- fetch_adapter(opts) do
-      build_positions(bodies, datetime, adapter, opts)
+         :ok <- validate_coordinates(coordinates) do
+      build_positions(bodies, datetime, coordinates, adapter)
     end
   end
 
-  defp build_positions(bodies, datetime, adapter, opts) do
+  defp build_positions(bodies, datetime, adapter) do
     Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
-      case adapter.get_ephemeride(datetime, body, opts) do
+      case adapter.get_position(datetime, body) do
         {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
   end
 
-  defp validate_options(opts) when is_list(opts) do
-    allowed_keys = [:adapter, :state, :observer, :frame, :abcorr]
-
-    case Enum.find(opts, fn {key, _value} -> key not in allowed_keys end) do
-      nil -> :ok
-      option -> {:error, {:unsupported_option, option}}
-    end
+  defp build_positions(bodies, datetime, coordinates, adapter) do
+    Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
+      case adapter.get_position(datetime, body, coordinates) do
+        {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
-  defp validate_options(option), do: {:error, {:unsupported_option, option}}
-
-  defp fetch_adapter(opts) do
-    adapter = Keyword.get(opts, :adapter, @default_adapter)
-
-    cond do
-      adapter == @default_adapter ->
-        {:ok, adapter}
-
-      valid_adapter?(adapter) ->
-        {:ok, adapter}
-
-      true ->
-        {:error, {:invalid_adapter, adapter}}
-    end
+  defp validate_adapter(adapter, arity) do
+    if valid_adapter?(adapter, arity),
+      do: {:ok, adapter},
+      else: {:error, {:invalid_adapter, adapter}}
   end
 
-  defp valid_adapter?(adapter) when is_atom(adapter) do
-    Code.ensure_loaded?(adapter) and function_exported?(adapter, :get_ephemeride, 3)
+  defp valid_adapter?(adapter, arity) when is_atom(adapter) do
+    Code.ensure_loaded?(adapter) and function_exported?(adapter, :get_position, arity)
   end
 
-  defp valid_adapter?(_adapter), do: false
+  defp valid_adapter?(_adapter, _arity), do: false
 
   defp validate_datetime(%DateTime{time_zone: "Etc/UTC", utc_offset: 0, std_offset: 0}), do: :ok
   defp validate_datetime(%DateTime{}), do: {:error, :datetime_must_be_utc}
@@ -139,6 +125,17 @@ defmodule Angelus.Astro do
       body -> {:error, {:duplicate_body, body}}
     end
   end
+
+  defp validate_coordinates({latitude, longitude, altitude})
+       when is_number(latitude) and is_number(longitude) and is_number(altitude) do
+    cond do
+      latitude < -90 or latitude > 90 -> {:error, {:latitude_out_of_range, latitude}}
+      longitude < -180 or longitude > 180 -> {:error, {:longitude_out_of_range, longitude}}
+      true -> :ok
+    end
+  end
+
+  defp validate_coordinates(_coordinates), do: {:error, :invalid_coordinates}
 
   defp validate_public_range(%DateTime{} = datetime) do
     date = DateTime.to_date(datetime)

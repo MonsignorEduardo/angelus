@@ -88,21 +88,12 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   defp download_to_temp!(base_path, %{file: file, source: source, path: final_path}, progress_pid) do
     case source do
-      %{kind: :bundled, path: source_path} ->
-        copy_to_temp!(base_path, file, final_path, source_path, progress_pid)
+      %{kind: :url, url: url, sha256: sha256} ->
+        download_to_temp!(base_path, file, final_path, url, sha256, progress_pid)
 
       %{kind: :url, url: url} ->
         download_to_temp!(base_path, file, final_path, url, progress_pid)
     end
-  end
-
-  defp copy_to_temp!(base_path, file, final_path, source_path, progress_pid) do
-    tmp_path = Path.join(base_path, ".#{file}.tmp")
-    File.rm(tmp_path)
-    File.cp!(source_path, tmp_path)
-    validate_file!(tmp_path, true)
-    send(progress_pid, {:file_done, file})
-    {tmp_path, final_path}
   end
 
   defp download_to_temp!(base_path, file, final_path, url, progress_pid) do
@@ -118,6 +109,12 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
     validate_file!(tmp_path, true)
     send(progress_pid, {:file_done, file})
+    {tmp_path, final_path}
+  end
+
+  defp download_to_temp!(base_path, file, final_path, url, sha256, progress_pid) do
+    {tmp_path, final_path} = download_to_temp!(base_path, file, final_path, url, progress_pid)
+    validate_checksum!(tmp_path, sha256)
     {tmp_path, final_path}
   end
 
@@ -312,9 +309,6 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   defp content_length!(source) do
     case source do
-      %{kind: :bundled, path: path} ->
-        path |> File.stat!() |> Map.fetch!(:size)
-
       %{kind: :url, url: url} ->
         response = Req.head!(url: url)
 
@@ -342,6 +336,17 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   defp validate_downloads!(temporaries),
     do: Enum.each(temporaries, fn {tmp_path, _final_path} -> validate_file!(tmp_path, true) end)
+
+  defp validate_checksum!(path, expected) do
+    actual =
+      path |> File.read!() |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower)
+
+    if actual != expected do
+      Mix.raise(
+        "checksum mismatch for #{Path.basename(path)}: expected #{expected}, got #{actual}"
+      )
+    end
+  end
 
   defp validate_file!(path, _force?) do
     cond do

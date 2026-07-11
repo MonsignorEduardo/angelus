@@ -4,17 +4,29 @@
 
 #include "request.h"
 
+#include <limits.h>
+#include <math.h>
 #include <string.h>
 
-static int request_id(cJSON *root) {
-  cJSON *item = cJSON_GetObjectItem(root, "id");
-  return cJSON_IsNumber(item) ? (int)item->valueint : 0;
+static int parse_request_id(cJSON *root, int *id) {
+  cJSON *item = cJSON_GetObjectItemCaseSensitive(root, "id");
+  if (!cJSON_IsNumber(item) || !isfinite(item->valuedouble) ||
+      item->valuedouble < 1 || item->valuedouble > INT_MAX ||
+      floor(item->valuedouble) != item->valuedouble)
+    return -1;
+
+  *id = (int)item->valuedouble;
+  return 0;
 }
 
-static const char *request_string(cJSON *root, const char *key,
-                                  const char *fallback) {
-  cJSON *item = cJSON_GetObjectItem(root, key);
-  return cJSON_IsString(item) ? item->valuestring : fallback;
+static int parse_request_string(cJSON *root, const char *key,
+                                const char **value) {
+  cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
+  if (!cJSON_IsString(item) || !item->valuestring || item->valuestring[0] == '\0')
+    return -1;
+
+  *value = item->valuestring;
+  return 0;
 }
 
 static ActionName action_name(const char *op) {
@@ -31,24 +43,29 @@ static ActionName action_name(const char *op) {
   return ACTION_UNKNOWN;
 }
 
-static LoadKernelsArgs parse_load_kernels(cJSON *root) {
-  LoadKernelsArgs args = {0};
-  cJSON *arr = cJSON_GetObjectItem(root, "paths");
+static int parse_load_kernels(cJSON *root, LoadKernelsArgs *args) {
+  cJSON *arr = cJSON_GetObjectItemCaseSensitive(root, "paths");
+  if (!cJSON_IsArray(arr))
+    return -1;
 
-  if (cJSON_IsArray(arr)) {
-    cJSON *item;
-    cJSON_ArrayForEach(item, arr) {
-      if (cJSON_IsString(item) && args.path_count < REQUEST_MAX_PATHS)
-        args.paths[args.path_count++] = item->valuestring;
-    }
+  int count = cJSON_GetArraySize(arr);
+  if (count < 0 || count > REQUEST_MAX_PATHS)
+    return -1;
+
+  cJSON *item;
+  cJSON_ArrayForEach(item, arr) {
+    if (!cJSON_IsString(item) || !item->valuestring || item->valuestring[0] == '\0')
+      return -1;
+    args->paths[args->path_count++] = item->valuestring;
   }
 
-  return args;
+  return 0;
 }
 
 ParsedAction parse_packet(const char *json) {
   ParsedAction action = {0};
   action.name = ACTION_INVALID;
+  action.id = -1;
   action.error = "invalid JSON";
 
   cJSON *root = cJSON_Parse(json);
@@ -56,11 +73,18 @@ ParsedAction parse_packet(const char *json) {
     return action;
 
   action.root = root;
-  action.id = request_id(root);
+  if (!cJSON_IsObject(root))
+    return action;
 
-  cJSON *op_item = cJSON_GetObjectItem(root, "op");
-  if (!op_item || !cJSON_IsString(op_item)) {
-    action.error = "missing op";
+  if (parse_request_id(root, &action.id) != 0) {
+    action.error = "invalid id";
+    return action;
+  }
+
+  cJSON *op_item = cJSON_GetObjectItemCaseSensitive(root, "op");
+  if (!cJSON_IsString(op_item) || !op_item->valuestring ||
+      op_item->valuestring[0] == '\0') {
+    action.error = "invalid op";
     return action;
   }
 
@@ -69,18 +93,24 @@ ParsedAction parse_packet(const char *json) {
 
   switch (action.name) {
   case ACTION_LOAD_KERNELS:
-    action.args.load_kernels = parse_load_kernels(root);
+    if (parse_load_kernels(root, &action.args.load_kernels) != 0) {
+      action.name = ACTION_INVALID;
+      action.error = "invalid paths";
+    }
     break;
   case ACTION_BODY:
-    action.args.body.target = request_string(root, "target", "");
-    action.args.body.utc = request_string(root, "utc", "");
-    action.args.body.observer = request_string(root, "observer", "EARTH");
-    action.args.body.frame = request_string(root, "frame", "ECLIPJ2000");
-    action.args.body.abcorr = request_string(root, "abcorr", "LT+S");
+    if (parse_request_string(root, "target", &action.args.body.target) != 0 ||
+        parse_request_string(root, "utc", &action.args.body.utc) != 0) {
+      action.name = ACTION_INVALID;
+      action.error = "invalid body arguments";
+    }
     break;
   case ACTION_MATH_POINT:
-    action.args.math_point.point = request_string(root, "point", "");
-    action.args.math_point.utc = request_string(root, "utc", "");
+    if (parse_request_string(root, "point", &action.args.math_point.point) != 0 ||
+        parse_request_string(root, "utc", &action.args.math_point.utc) != 0) {
+      action.name = ACTION_INVALID;
+      action.error = "invalid math_point arguments";
+    }
     break;
   case ACTION_UNKNOWN:
     action.error = "unknown op";

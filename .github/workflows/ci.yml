@@ -100,3 +100,6 @@ jobs:
 
       - name: Test
         run: mix test test/unit
+
+      - name: Smoke test Hex package source build
+        run: sh scripts/hex_package_smoke.sh

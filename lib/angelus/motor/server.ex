@@ -3,12 +3,17 @@ defmodule Angelus.Motor.Server do
 
   use GenServer
 
+  import Bitwise, only: [band: 2]
+
   require Logger
 
   alias Angelus.Motor.KernelSet
   alias Angelus.Motor.WorkerProtocol
 
   @worker_bin "angelus_worker"
+  @request_timeout 29_000
+  @reopen_base_delay 100
+  @reopen_max_delay 5_000
 
   # ── GenServer ────────────────────────────────────────────────────────────
 
@@ -19,8 +24,10 @@ defmodule Angelus.Motor.Server do
       port: nil,
       next_id: 1,
       pending: %{},
-      loaded?: false,
-      metadata: nil
+      kernel_state: :unloaded,
+      metadata: nil,
+      reopen_attempt: 0,
+      reopen_timer: nil
     }
 
     case open_port() do
@@ -30,14 +37,17 @@ defmodule Angelus.Motor.Server do
         # Clear any residual CSPICE state at startup
         {id, state} = next_id(state)
         Logger.debug("Sending startup clear_kernels request", request_id: id)
-        send_to_port(port, WorkerProtocol.encode_clear_kernels(id))
-        {:ok, state}
 
-      {:error, {:worker_not_found, _bin}} ->
+        case send_to_port(port, WorkerProtocol.encode_clear_kernels(id)) do
+          :ok -> {:ok, state}
+          {:error, _reason} -> {:ok, restart_worker(state, {:error, :worker_write_failed})}
+        end
+
+      {:error, _reason} ->
         # Binary not compiled yet — start without a port.
         # Calls that require CSPICE will return {:error, :worker_not_available}.
         # Structural validation (whitelist, missing files, etc.) still works.
-        {:ok, base}
+        {:ok, schedule_reopen(base)}
     end
   end
 
@@ -60,39 +70,52 @@ defmodule Angelus.Motor.Server do
         {:reply, {:error, :worker_not_available}, state}
 
       {:ok, metadata} ->
-        if state.loaded? and not replace? do
-          {:reply, {:error, :kernels_already_loaded}, state}
-        else
-          do_load_kernels(paths, metadata, replace?, from, state)
+        case state.kernel_state do
+          state_name when state_name in [:loading, :replacing] ->
+            {:reply, {:error, :kernel_operation_in_progress}, state}
+
+          :loaded when not replace? ->
+            {:reply, {:error, :kernels_already_loaded}, state}
+
+          _state_name ->
+            do_load_kernels(paths, metadata, replace?, from, state)
         end
     end
   end
 
   # body/math_point: return kernels_not_loaded when no kernels (covers nil port too)
-  def handle_call({:body, _target, _utc, _opts}, _from, %{loaded?: false} = state),
-    do: {:reply, {:error, :kernels_not_loaded}, state}
+  def handle_call({:body, _target, _utc}, _from, %{kernel_state: state_name} = state)
+      when state_name != :loaded,
+      do: {:reply, {:error, :kernels_not_loaded}, state}
 
-  def handle_call({:math_point, _point, _utc}, _from, %{loaded?: false} = state),
-    do: {:reply, {:error, :kernels_not_loaded}, state}
+  def handle_call({:math_point, _point, _utc}, _from, %{kernel_state: state_name} = state)
+      when state_name != :loaded,
+      do: {:reply, {:error, :kernels_not_loaded}, state}
 
-  def handle_call({:body, target, utc, opts}, from, state) do
+  def handle_call({:body, target, utc}, from, state) do
     iso8601 = DateTime.to_iso8601(utc)
-    request_opts = body_request_opts(opts)
     {id, new_state} = next_id(state)
 
     Logger.debug("Requesting body state", request_id: id, target: target, utc: iso8601)
-    send_to_port(state.port, WorkerProtocol.encode_body(id, target, iso8601, request_opts))
 
     meta = %{
-      observer: request_opts.observer,
-      abcorr: request_opts.abcorr,
-      frame_base: request_opts.frame,
-      state: request_opts.state,
+      observer: "EARTH",
+      abcorr: "CN+S",
+      frame_base: "ECLIPJ2000",
+      state: :geocentric,
       kernel_metadata: state.metadata
     }
 
-    pending = Map.put(new_state.pending, id, {:body, from, meta})
-    {:noreply, %{new_state | pending: pending}}
+    case send_to_port(state.port, WorkerProtocol.encode_body(id, target, iso8601)) do
+      :ok ->
+        {:noreply, put_pending(new_state, id, %{kind: :body, from: from, meta: meta})}
+
+      {:error, reason} ->
+        Logger.error("Failed to write body request to worker", reason: inspect(reason))
+
+        {:reply, {:error, :worker_write_failed},
+         restart_worker(state, {:error, :worker_restarted})}
+    end
   end
 
   def handle_call({:math_point, point, utc}, from, state) do
@@ -100,11 +123,18 @@ defmodule Angelus.Motor.Server do
     {id, new_state} = next_id(state)
 
     Logger.debug("Requesting math point #{inspect(point)}", request_id: id, utc: iso8601)
-    send_to_port(state.port, WorkerProtocol.encode_math_point(id, point, iso8601))
-
     meta = %{point: point, kernel_metadata: state.metadata}
-    pending = Map.put(new_state.pending, id, {:math_point, from, meta})
-    {:noreply, %{new_state | pending: pending}}
+
+    case send_to_port(state.port, WorkerProtocol.encode_math_point(id, point, iso8601)) do
+      :ok ->
+        {:noreply, put_pending(new_state, id, %{kind: :math_point, from: from, meta: meta})}
+
+      {:error, reason} ->
+        Logger.error("Failed to write math point request to worker", reason: inspect(reason))
+
+        {:reply, {:error, :worker_write_failed},
+         restart_worker(state, {:error, :worker_restarted})}
+    end
   end
 
   def handle_call(:metadata, _from, state), do: {:reply, {:ok, state.metadata}, state}
@@ -120,17 +150,16 @@ defmodule Angelus.Motor.Server do
   def handle_info({port, {:data, data}}, %{port: port} = state) do
     case WorkerProtocol.decode(data) do
       {:error, :decode_error, _raw} ->
-        # Malformed response — log and continue; don't crash
         Logger.error("Received malformed response from Angelus worker")
-        {:noreply, state}
+        {:noreply, restart_worker(state, {:error, :worker_protocol_error})}
 
       {:ok, id, result} ->
         Logger.debug("Received Angelus worker reply", request_id: id, result: :ok)
-        handle_worker_reply(id, {:ok, result}, state)
+        handle_worker_reply(id, {:ok, result}, %{state | reopen_attempt: 0})
 
       {:error, id, reason} ->
         Logger.warning("Received Angelus worker error", request_id: id, reason: inspect(reason))
-        handle_worker_reply(id, {:error, reason}, state)
+        handle_worker_reply(id, {:error, reason}, %{state | reopen_attempt: 0})
     end
   end
 
@@ -142,19 +171,32 @@ defmodule Angelus.Motor.Server do
     )
 
     Enum.each(state.pending, fn {_id, waiter} ->
+      Process.cancel_timer(waiter.timer)
       reply_to_waiter(waiter, {:error, :worker_crashed})
     end)
 
-    case open_port() do
-      {:ok, new_port} ->
-        Logger.info("Angelus worker port reopened after crash")
-        {:noreply, %{state | port: new_port, pending: %{}, loaded?: false, metadata: nil}}
+    clean_state = %{state | port: nil, pending: %{}, kernel_state: :unloaded, metadata: nil}
+    {:noreply, schedule_reopen(clean_state)}
+  end
 
-      {:error, _reason} ->
-        Logger.error("Angelus worker port could not be reopened after crash")
-        {:noreply, %{state | port: nil, pending: %{}, loaded?: false, metadata: nil}}
+  def handle_info({:request_timeout, id}, state) do
+    case Map.fetch(state.pending, id) do
+      :error ->
+        {:noreply, state}
+
+      {:ok, waiter} ->
+        Logger.error("Angelus worker request timed out", request_id: id, operation: waiter.kind)
+        reply_to_waiter(waiter, {:error, :worker_timeout})
+        remaining = Map.delete(state.pending, id)
+        {:noreply, restart_worker(%{state | pending: remaining}, {:error, :worker_restarted})}
     end
   end
+
+  def handle_info(:reopen_port, %{port: nil} = state) do
+    {:noreply, reopen_or_schedule(%{state | reopen_timer: nil})}
+  end
+
+  def handle_info(:reopen_port, state), do: {:noreply, %{state | reopen_timer: nil}}
 
   def handle_info(_msg, state), do: {:noreply, state}
 
@@ -169,12 +211,12 @@ defmodule Angelus.Motor.Server do
   def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
 
   @doc "Combined UTC -> ET -> body state round-trip via the native worker."
-  @spec body(String.t(), DateTime.t(), keyword()) :: {:ok, map()} | {:error, term()}
-  def body(target, utc, opts), do: call({:body, target, utc, opts})
+  @spec get_body(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
+  def get_body(target, utc), do: call({:body, target, utc})
 
   @doc "Returns a mathematical point state via the native worker."
-  @spec math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
-  def math_point(point, utc), do: call({:math_point, point, utc})
+  @spec get_math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
+  def get_math_point(point, utc), do: call({:math_point, point, utc})
 
   @doc "Returns metadata for the currently loaded kernel set, if any."
   @spec metadata() :: {:ok, map() | nil}
@@ -189,21 +231,44 @@ defmodule Angelus.Motor.Server do
   defp open_port do
     bin = worker_bin_path()
 
-    if File.exists?(bin) do
+    with {:ok, stat} <- File.stat(bin),
+         true <- stat.type == :regular,
+         true <- band(stat.mode, 0o111) != 0 do
       Logger.debug("Opening Angelus worker binary", worker_binary: bin)
 
-      port =
-        Port.open({:spawn_executable, bin}, [
-          :binary,
-          :exit_status,
-          {:packet, 4},
-          :use_stdio
-        ])
+      try do
+        {:ok,
+         Port.open({:spawn_executable, bin}, [
+           :binary,
+           :exit_status,
+           {:packet, 4},
+           :use_stdio
+         ])}
+      rescue
+        error in [ArgumentError, ErlangError] ->
+          Logger.error("Angelus worker could not be opened",
+            worker_binary: bin,
+            reason: Exception.message(error)
+          )
 
-      {:ok, port}
+          {:error, {:worker_open_failed, bin}}
+      end
     else
-      Logger.warning("Angelus worker binary not found", worker_binary: bin)
-      {:error, {:worker_not_found, bin}}
+      {:error, :enoent} ->
+        Logger.warning("Angelus worker binary not found", worker_binary: bin)
+        {:error, {:worker_not_found, bin}}
+
+      {:error, reason} ->
+        Logger.error("Angelus worker binary could not be inspected",
+          worker_binary: bin,
+          reason: inspect(reason)
+        )
+
+        {:error, {:worker_unavailable, bin}}
+
+      false ->
+        Logger.error("Angelus worker binary is not executable", worker_binary: bin)
+        {:error, {:worker_not_executable, bin}}
     end
   end
 
@@ -214,82 +279,126 @@ defmodule Angelus.Motor.Server do
     end
   end
 
-  defp send_to_port(port, json) when is_binary(json) do
-    Port.command(port, json)
+  defp send_to_port(port, json) when is_port(port) and is_binary(json) do
+    if Port.command(port, json), do: :ok, else: {:error, :port_closed}
+  rescue
+    ArgumentError -> {:error, :port_closed}
   end
+
+  defp send_to_port(_port, _json), do: {:error, :port_unavailable}
 
   defp do_load_kernels(paths, metadata, replace?, from, state) do
     if replace? do
       {clear_id, state1} = next_id(state)
       Logger.debug("Sending clear_kernels request", request_id: clear_id)
-      send_to_port(state1.port, WorkerProtocol.encode_clear_kernels(clear_id))
 
-      {load_id, state2} = next_id(state1)
+      case send_to_port(state1.port, WorkerProtocol.encode_clear_kernels(clear_id)) do
+        :ok ->
+          waiter = %{
+            kind: :replace_clear,
+            from: from,
+            paths: paths,
+            metadata: metadata
+          }
 
-      Logger.debug("Sending load_kernels request",
-        request_id: load_id,
-        kernel_count: length(paths)
-      )
+          {:noreply, %{put_pending(state1, clear_id, waiter) | kernel_state: :replacing}}
 
-      send_to_port(state2.port, WorkerProtocol.encode_load_kernels(load_id, paths))
+        {:error, reason} ->
+          Logger.error("Failed to write clear request to worker", reason: inspect(reason))
 
-      pending =
-        state2.pending
-        |> Map.put(clear_id, :clear_ack)
-        |> Map.put(load_id, {:load_kernels, from, metadata})
-
-      {:noreply, %{state2 | pending: pending, loaded?: false, metadata: nil}}
+          {:reply, {:error, :worker_write_failed},
+           restart_worker(state, {:error, :worker_restarted})}
+      end
     else
-      {load_id, state1} = next_id(state)
+      case send_load_request(%{state | kernel_state: :loading}, paths, metadata, from) do
+        {:ok, new_state} ->
+          {:noreply, new_state}
 
-      Logger.debug("Sending load_kernels request",
-        request_id: load_id,
-        kernel_count: length(paths)
-      )
+        {:error, reason, failed_state} ->
+          Logger.error("Failed to write load request to worker", reason: inspect(reason))
 
-      send_to_port(state1.port, WorkerProtocol.encode_load_kernels(load_id, paths))
-
-      pending = Map.put(state1.pending, load_id, {:load_kernels, from, metadata})
-      {:noreply, %{state1 | pending: pending}}
+          {:reply, {:error, :worker_write_failed},
+           restart_worker(failed_state, {:error, :worker_restarted})}
+      end
     end
   end
 
   defp handle_worker_reply(id, result, state) do
-    case Map.pop(state.pending, id) do
+    case pop_pending(state.pending, id) do
       {nil, _} ->
         # Unexpected id (e.g. startup clear_kernels ack) — ignore
         Logger.debug("Ignoring unexpected Angelus worker reply", request_id: id)
         {:noreply, state}
 
-      {:clear_ack, remaining} ->
+      {waiter, remaining} ->
+        handle_pending_reply(waiter, result, id, remaining, state)
+    end
+  end
+
+  defp handle_pending_reply(%{kind: :replace_clear} = waiter, result, id, remaining, state) do
+    case result do
+      {:ok, _} ->
         Logger.debug("Received clear_kernels ack", request_id: id)
-        {:noreply, %{state | pending: remaining}}
 
-      {{:load_kernels, from, metadata}, remaining} ->
-        case result do
-          {:ok, _} ->
-            Logger.info("SPICE kernels loaded", request_id: id)
-            GenServer.reply(from, {:ok, metadata})
-            {:noreply, %{state | pending: remaining, loaded?: true, metadata: metadata}}
+        case send_load_request(
+               %{state | pending: remaining, metadata: nil},
+               waiter.paths,
+               waiter.metadata,
+               waiter.from,
+               waiter.deadline
+             ) do
+          {:ok, new_state} ->
+            {:noreply, new_state}
 
-          {:error, reason} ->
-            Logger.warning("SPICE kernel load failed", request_id: id, reason: inspect(reason))
-            GenServer.reply(from, {:error, {:kernel_load_failed, reason}})
-            {:noreply, %{state | pending: remaining, loaded?: false, metadata: nil}}
+          {:error, reason, failed_state} ->
+            Logger.error("Failed to write replacement load request", reason: inspect(reason))
+            GenServer.reply(waiter.from, {:error, :worker_write_failed})
+            {:noreply, restart_worker(failed_state, {:error, :worker_restarted})}
         end
 
-      {{:body, from, meta}, remaining} ->
-        Logger.debug("Body state completed", request_id: id)
-        reply = handle_body_result(result, meta)
-        GenServer.reply(from, reply)
-        {:noreply, %{state | pending: remaining}}
-
-      {{:math_point, from, meta}, remaining} ->
-        Logger.debug("Math point completed", request_id: id)
-        reply = handle_point_result(result, meta)
-        GenServer.reply(from, reply)
-        {:noreply, %{state | pending: remaining}}
+      {:error, reason} ->
+        Logger.warning("SPICE kernel clear failed", request_id: id, reason: inspect(reason))
+        GenServer.reply(waiter.from, {:error, {:kernel_clear_failed, reason}})
+        {:noreply, restart_worker(%{state | pending: remaining}, {:error, :worker_restarted})}
     end
+  end
+
+  defp handle_pending_reply(
+         %{kind: :load_kernels, from: from, meta: metadata},
+         result,
+         id,
+         remaining,
+         state
+       ) do
+    case result do
+      {:ok, _} ->
+        Logger.info("SPICE kernels loaded", request_id: id)
+        GenServer.reply(from, {:ok, metadata})
+        {:noreply, %{state | pending: remaining, kernel_state: :loaded, metadata: metadata}}
+
+      {:error, reason} ->
+        Logger.warning("SPICE kernel load failed", request_id: id, reason: inspect(reason))
+        GenServer.reply(from, {:error, {:kernel_load_failed, reason}})
+        {:noreply, %{state | pending: remaining, kernel_state: :unloaded, metadata: nil}}
+    end
+  end
+
+  defp handle_pending_reply(%{kind: :body, from: from, meta: meta}, result, id, remaining, state) do
+    Logger.debug("Body state completed", request_id: id)
+    GenServer.reply(from, handle_body_result(result, meta))
+    {:noreply, %{state | pending: remaining}}
+  end
+
+  defp handle_pending_reply(
+         %{kind: :math_point, from: from, meta: meta},
+         result,
+         id,
+         remaining,
+         state
+       ) do
+    Logger.debug("Math point completed", request_id: id)
+    GenServer.reply(from, handle_point_result(result, meta))
+    {:noreply, %{state | pending: remaining}}
   end
 
   defp handle_body_result({:ok, raw}, meta) do
@@ -327,33 +436,85 @@ defmodule Angelus.Motor.Server do
     }
   end
 
-  defp body_request_opts(opts) do
-    %{
-      state: Keyword.get(opts, :state, :geocentric),
-      observer: observer_name(Keyword.get(opts, :observer, :earth)),
-      frame: frame_name(Keyword.get(opts, :frame, :eclipj2000)),
-      abcorr: abcorr_name(Keyword.get(opts, :abcorr, :lt_s))
-    }
+  defp reply_to_waiter(%{from: from}, reply), do: GenServer.reply(from, reply)
+  defp reply_to_waiter(nil, _reply), do: :ok
+
+  defp send_load_request(state, paths, metadata, from, deadline \\ nil) do
+    {id, new_state} = next_id(state)
+
+    Logger.debug("Sending load_kernels request", request_id: id, kernel_count: length(paths))
+
+    case send_to_port(new_state.port, WorkerProtocol.encode_load_kernels(id, paths)) do
+      :ok ->
+        waiter = %{kind: :load_kernels, from: from, meta: metadata}
+        waiter = if deadline, do: Map.put(waiter, :deadline, deadline), else: waiter
+        {:ok, put_pending(new_state, id, waiter)}
+
+      {:error, reason} ->
+        {:error, reason, new_state}
+    end
   end
 
-  defp observer_name(:earth), do: "EARTH"
+  defp put_pending(state, id, waiter) do
+    now = System.monotonic_time(:millisecond)
+    deadline = Map.get(waiter, :deadline, now + @request_timeout)
+    timer = Process.send_after(self(), {:request_timeout, id}, max(deadline - now, 0))
+    waiter = Map.merge(waiter, %{deadline: deadline, timer: timer})
+    %{state | pending: Map.put(state.pending, id, waiter)}
+  end
 
-  defp frame_name(:eclipj2000), do: "ECLIPJ2000"
-  defp frame_name(:j2000), do: "J2000"
-  defp frame_name(:icrf), do: "ICRF"
-  defp frame_name(:gcrs), do: "GCRS"
+  defp pop_pending(pending, id) do
+    case Map.pop(pending, id) do
+      {nil, remaining} ->
+        {nil, remaining}
 
-  defp abcorr_name(:none), do: "NONE"
-  defp abcorr_name(:lt), do: "LT"
-  defp abcorr_name(:lt_s), do: "LT+S"
-  defp abcorr_name(:cn), do: "CN"
-  defp abcorr_name(:cn_s), do: "CN+S"
+      {%{timer: timer} = waiter, remaining} ->
+        Process.cancel_timer(timer)
+        {Map.delete(waiter, :timer), remaining}
+    end
+  end
 
-  defp reply_to_waiter({:load_kernels, from, _meta}, reply), do: GenServer.reply(from, reply)
-  defp reply_to_waiter({:body, from, _meta}, reply), do: GenServer.reply(from, reply)
-  defp reply_to_waiter({:math_point, from, _meta}, reply), do: GenServer.reply(from, reply)
-  defp reply_to_waiter(:clear_ack, _reply), do: :ok
-  defp reply_to_waiter(nil, _reply), do: :ok
+  defp restart_worker(state, pending_reply) do
+    Enum.each(state.pending, fn {_id, waiter} ->
+      Process.cancel_timer(waiter.timer)
+      reply_to_waiter(waiter, pending_reply)
+    end)
+
+    close_port(state.port)
+
+    state
+    |> Map.merge(%{port: nil, pending: %{}, kernel_state: :unloaded, metadata: nil})
+    |> reopen_or_schedule()
+  end
+
+  defp reopen_or_schedule(state) do
+    case open_port() do
+      {:ok, port} ->
+        if state.reopen_timer, do: Process.cancel_timer(state.reopen_timer)
+        Logger.info("Angelus worker port opened")
+        %{state | port: port, reopen_timer: nil}
+
+      {:error, _reason} ->
+        schedule_reopen(%{state | port: nil})
+    end
+  end
+
+  defp schedule_reopen(%{reopen_timer: timer} = state) when is_reference(timer), do: state
+
+  defp schedule_reopen(state) do
+    exponent = min(state.reopen_attempt, 6)
+    delay = min(@reopen_base_delay * Integer.pow(2, exponent), @reopen_max_delay)
+    timer = Process.send_after(self(), :reopen_port, delay)
+    %{state | reopen_attempt: state.reopen_attempt + 1, reopen_timer: timer}
+  end
+
+  defp close_port(nil), do: :ok
+
+  defp close_port(port) do
+    Port.close(port)
+  rescue
+    ArgumentError -> :ok
+  end
 
   defp call(message) do
     case Process.whereis(__MODULE__) do

@@ -27,9 +27,6 @@ typedef struct {
 typedef struct {
   const char *target;
   const char *utc;
-  const char *observer;
-  const char *frame;
-  const char *abcorr;
 } BodyArgs;
 
 typedef struct {

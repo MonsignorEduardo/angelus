@@ -57,6 +57,34 @@ jobs:
 
           echo "Version check passed: mix.exs version '${MIX_VERSION}' matches tag '${RELEASE_TAG}'."
 
+  create-draft-release:
+    name: Create draft release
+    needs: validate-release-ref
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Create or reuse draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if IS_DRAFT=$(gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$IS_DRAFT" != "true" ]; then
+              echo "::error title=Release already published::Release '${RELEASE_TAG}' already exists and is not a draft."
+              exit 1
+            fi
+
+            echo "Reusing existing draft release '${RELEASE_TAG}'."
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "${{ github.repository }}" \
+              --draft \
+              --verify-tag \
+              --generate-notes \
+              --title "$RELEASE_TAG"
+          fi
+
   ci:
     name: CI
     needs: validate-release-ref
@@ -135,7 +163,7 @@ jobs:
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
-    needs: [e2e-tests, ci, leak-check]
+    needs: [create-draft-release, e2e-tests, ci, leak-check]
     runs-on: macos-14
     permissions:
       contents: write
@@ -178,7 +206,7 @@ jobs:
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
-    needs: [e2e-tests, ci, leak-check]
+    needs: [create-draft-release, e2e-tests, ci, leak-check]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -223,7 +251,7 @@ jobs:
   # ── Linux (aarch64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux-arm64:
     name: Precompile / aarch64-linux-gnu
-    needs: [e2e-tests, ci, leak-check]
+    needs: [create-draft-release, e2e-tests, ci, leak-check]
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -335,3 +363,20 @@ jobs:
         run: mix hex.publish --yes
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+
+  publish-release:
+    name: Publish GitHub release
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --draft=false \
+            --latest

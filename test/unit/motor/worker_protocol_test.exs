@@ -21,39 +21,18 @@ defmodule Angelus.Motor.WorkerProtocolTest do
     assert {:ok, %{"id" => 3, "op" => "load_kernels", "paths" => ^paths}} = Jason.decode(json)
   end
 
-  test "encode_body includes target, utc and configured params" do
-    json =
-      WorkerProtocol.encode_body(4, "JUPITER", "1990-05-24T06:30:00Z", %{
-        observer: "EARTH",
-        frame: "ECLIPJ2000",
-        abcorr: "LT+S"
-      })
+  test "encode_body includes only target and utc" do
+    json = WorkerProtocol.encode_body(4, "JUPITER", "1990-05-24T06:30:00Z")
 
     assert {:ok, decoded} = Jason.decode(json)
     assert decoded["id"] == 4
     assert decoded["op"] == "body"
     assert decoded["target"] == "JUPITER"
-    assert decoded["observer"] == "EARTH"
-    assert decoded["frame"] == "ECLIPJ2000"
-    assert decoded["abcorr"] == "LT+S"
     assert decoded["utc"] == "1990-05-24T06:30:00Z"
+    refute Map.has_key?(decoded, "observer")
+    refute Map.has_key?(decoded, "frame")
+    refute Map.has_key?(decoded, "abcorr")
     refute Map.has_key?(decoded, "units")
-  end
-
-  test "encode_body supports alternative frame and aberration correction" do
-    json =
-      WorkerProtocol.encode_body(5, "MARS", "1990-05-24T06:30:00Z", %{
-        observer: "EARTH",
-        frame: "J2000",
-        abcorr: "NONE"
-      })
-
-    assert {:ok, decoded} = Jason.decode(json)
-    assert decoded["id"] == 5
-    assert decoded["target"] == "MARS"
-    assert decoded["observer"] == "EARTH"
-    assert decoded["frame"] == "J2000"
-    assert decoded["abcorr"] == "NONE"
   end
 
   test "encode_math_point includes point and utc" do
@@ -87,6 +66,14 @@ defmodule Angelus.Motor.WorkerProtocolTest do
     assert {:error, :decode_error, _} = WorkerProtocol.decode(~s({"wrong":"keys"}))
   end
 
+  test "decode rejects invalid envelope field types" do
+    assert {:error, :decode_error, _} =
+             WorkerProtocol.decode(~s({"id":1.5,"ok":true,"result":{}}))
+
+    assert {:error, :decode_error, _} = WorkerProtocol.decode(~s({"id":0,"ok":true,"result":{}}))
+    assert {:error, :decode_error, _} = WorkerProtocol.decode(~s({"id":1,"ok":false,"error":42}))
+  end
+
   # ── coerce_body ─────────────────────────────────────────────────────────
 
   test "coerce_body converts string-keyed map to typed atom-keyed map" do
@@ -107,6 +94,13 @@ defmodule Angelus.Motor.WorkerProtocolTest do
   test "coerce_body returns error on invalid map" do
     assert {:error, :invalid_body_result} = WorkerProtocol.coerce_body(%{"wrong" => "data"})
     assert {:error, :invalid_body_result} = WorkerProtocol.coerce_body("not a map")
+
+    assert {:error, :invalid_body_result} =
+             WorkerProtocol.coerce_body(%{
+               "state_km" => ["1", 2, 3, 4, 5, 6],
+               "light_time_seconds" => 1,
+               "et_seconds" => 2
+             })
   end
 
   test "coerce_point converts string-keyed map to typed atom-keyed map" do
@@ -125,5 +119,12 @@ defmodule Angelus.Motor.WorkerProtocolTest do
   test "coerce_point returns error on invalid map" do
     assert {:error, :invalid_point_result} = WorkerProtocol.coerce_point(%{"wrong" => "data"})
     assert {:error, :invalid_point_result} = WorkerProtocol.coerce_point("not a map")
+
+    assert {:error, :invalid_point_result} =
+             WorkerProtocol.coerce_point(%{
+               "longitude_rad" => nil,
+               "speed_rad_day" => 1,
+               "et_seconds" => 2
+             })
   end
 end

@@ -57,6 +57,5 @@ int write_packet(const char *json, uint32_t length) {
     return -1;
   if (fwrite(json, 1, length, stdout) != length)
     return -1;
-  fflush(stdout);
-  return 0;
+  return fflush(stdout) == 0 ? 0 : -1;
 }

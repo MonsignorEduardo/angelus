@@ -31,23 +31,6 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
     datetime = parse_args!(args)
     Logger.configure(level: :debug)
 
-    Logger.configure_backend(:console,
-      format: "$time $metadata[$level] $message\n",
-      metadata: [
-        :exit_status,
-        :kernel_count,
-        :operation,
-        :pending_request_count,
-        :reason,
-        :replace?,
-        :request_id,
-        :result,
-        :target,
-        :utc,
-        :worker_binary
-      ]
-    )
-
     Mix.shell().info("Starting Angelus app...")
     Mix.Task.run("app.start")
 
@@ -55,7 +38,7 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
 
     with {:ok, adapter} <- Angelus.load_kernels(replace: true),
          _ <- Mix.shell().info("Computing ephemeris for #{length(@bodies)} bodies..."),
-         {:ok, positions} <- Angelus.positions(@bodies, datetime, adapter: adapter) do
+         {:ok, positions} <- Angelus.get_positions(@bodies, datetime, adapter) do
       print_positions(datetime, positions)
     else
       {:error, {:kernel_file_missing, path}} ->
