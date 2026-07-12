@@ -54,6 +54,21 @@ defmodule Angelus.Motor.WorkerProtocol do
     })
   end
 
+  @doc "Encodes a body request for an Earth-fixed topocentric observer."
+  @spec encode_topocentric_body(request_id(), String.t(), String.t(), map()) :: binary()
+  def encode_topocentric_body(id, spice_target, iso8601, observer)
+      when is_binary(spice_target) and is_binary(iso8601) and is_map(observer) do
+    Jason.encode!(%{
+      "id" => id,
+      "op" => "topocentric_body",
+      "target" => spice_target,
+      "utc" => iso8601,
+      "latitude_degrees" => observer.latitude,
+      "longitude_degrees" => observer.longitude,
+      "ellipsoidal_height_m" => observer.ellipsoidal_height_m
+    })
+  end
+
   @doc "Encodes a mathematical point request."
   @spec encode_math_point(request_id(), String.t(), String.t()) :: binary()
   def encode_math_point(id, point, iso8601) when is_binary(point) and is_binary(iso8601) do

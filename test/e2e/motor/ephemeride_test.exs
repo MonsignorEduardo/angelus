@@ -1,9 +1,18 @@
 defmodule Angelus.Motor.EphemerideTest do
   use ExUnit.Case, async: false
 
+  alias Angelus.Astro.Location
+
   @moduletag :e2e
 
-  @minor_planet_targets ["2002060", "2000001", "2000002", "2000003", "2000004", "2136199"]
+  @minor_planet_targets [
+    "20002060",
+    "20000001",
+    "20000002",
+    "20000003",
+    "20000004",
+    "20136199"
+  ]
 
   setup_all do
     assert {:ok, _metadata} = Angelus.Motor.load_kernels(replace: true)
@@ -28,6 +37,25 @@ defmodule Angelus.Motor.EphemerideTest do
     assert state.abcorr == "CN+S"
     assert state.observer == "EARTH"
     assert state.state == :geocentric
+  end
+
+  test "returns a topocentric Moon state for a mean-sea-level location" do
+    assert {:ok, location} =
+             Location.new(
+               latitude: 40.4168,
+               longitude: -3.7038,
+               elevation_msl_m: 657
+             )
+
+    assert {:ok, adapter} = Angelus.load_kernels(replace: true)
+
+    assert {:ok, moon} =
+             Angelus.get_position(:moon, ~U[2000-01-01 12:00:00Z], location, adapter)
+
+    assert moon.distance_au > 0.0
+    assert moon.metadata.state == :topocentric
+    assert moon.metadata.observer.geoid == :egm2008_2_5
+    assert_in_delta moon.metadata.observer.ellipsoidal_height_m, 708.666, 0.001
   end
 
   test "resolves Horizons minor planet SPK targets" do

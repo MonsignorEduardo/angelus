@@ -1,0 +1,41 @@
+{
+  "source": {
+    "name": "NASA/JPL Horizons API",
+    "api_version": "1.2",
+    "retrieved_at": "2026-07-11",
+    "ephemeris_reported_by_horizons": "DE441",
+    "center": "500@399",
+    "reference_plane": "ECLIPTIC",
+    "reference_system": "ICRF",
+    "correction": "LT+S",
+    "units": "AU-D",
+    "time_type": "UT"
+  },
+  "tolerances": {
+    "distance_au": 1.0e-8
+  },
+  "cases": [
+    {
+      "body": "sun",
+      "horizons_command": "10",
+      "datetime_utc": "2000-01-01T12:00:00Z",
+      "position_au": [
+        0.1770501396310574,
+        -0.9672571887203341,
+        0.000004085799994016712
+      ],
+      "distance_au": 0.9833276265270058
+    },
+    {
+      "body": "moon",
+      "horizons_command": "301",
+      "datetime_utc": "2000-01-01T12:00:00Z",
+      "position_au": [
+        -0.001948846674303542,
+        -0.001838277790674754,
+        0.0002424326571912149
+      ],
+      "distance_au": 0.0026899892544218
+    }
+  ]
+}

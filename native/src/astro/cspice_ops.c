@@ -13,6 +13,7 @@
 static const char *POSITION_OBSERVER = "EARTH";
 static const char *POSITION_FRAME = "ECLIPJ2000";
 static const char *POSITION_ABCORR = "CN+S";
+static const char *EARTH_FIXED_FRAME = "ITRF93";
 
 static void fill_error(char *buf, int size, const char *msg) {
   if (buf && size > 0) {
@@ -91,6 +92,53 @@ BodyResult get_position(const char *target, const char *iso8601) {
   result.state.frame = ANGELUS_FRAME_ECLIPJ2000;
   result.state.abcorr = ANGELUS_ABCORR_CNS;
 
+  result.ok = 1;
+  return result;
+}
+
+BodyResult get_topocentric_position(const char *target, const char *iso8601,
+                                    double latitude_degrees,
+                                    double longitude_degrees,
+                                    double ellipsoidal_height_m) {
+  BodyResult result = {0};
+  TimeResult time = astro_utc_to_et(iso8601);
+  if (!time.ok) {
+    snprintf(result.error, sizeof(result.error), "%s", time.error);
+    return result;
+  }
+
+  SpiceInt count;
+  SpiceDouble radii[3];
+  bodvrd_c("EARTH", "RADII", 3, &count, radii);
+  if (failed_c() || count != 3) {
+    get_cspice_error(result.error, sizeof(result.error));
+    return result;
+  }
+
+  SpiceDouble flattening = (radii[0] - radii[2]) / radii[0];
+  SpiceDouble observer[3];
+  georec_c(longitude_degrees * rpd_c(), latitude_degrees * rpd_c(),
+           ellipsoidal_height_m / 1000.0, radii[0], flattening, observer);
+  if (failed_c()) {
+    get_cspice_error(result.error, sizeof(result.error));
+    return result;
+  }
+
+  SpiceDouble state[6];
+  SpiceDouble lt;
+  spkcpo_c(target, time.et, POSITION_FRAME, "OBSERVER", POSITION_ABCORR,
+           observer, POSITION_OBSERVER, EARTH_FIXED_FRAME, state, &lt);
+  if (failed_c()) {
+    get_cspice_error(result.error, sizeof(result.error));
+    return result;
+  }
+
+  for (int i = 0; i < 6; i++)
+    result.state.state_km[i] = state[i];
+  result.state.light_time_seconds = lt;
+  result.state.et_seconds = time.et;
+  result.state.frame = ANGELUS_FRAME_ECLIPJ2000;
+  result.state.abcorr = ANGELUS_ABCORR_CNS;
   result.ok = 1;
   return result;
 }

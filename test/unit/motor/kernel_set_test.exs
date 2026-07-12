@@ -7,6 +7,7 @@ defmodule Angelus.Motor.KernelSetTest do
     "naif0012.tls",
     "pck00011.tpc",
     "gm_de440.tpc",
+    "earth_1962_250826_2125_combined.bpc",
     "de442.bsp",
     "mar099.bsp",
     "jup349.bsp",
@@ -16,12 +17,12 @@ defmodule Angelus.Motor.KernelSetTest do
     "ura184_part-3.bsp",
     "nep105.bsp",
     "plu060.bsp",
-    "2002060.bsp",
-    "2000001.bsp",
-    "2000002.bsp",
-    "2000003.bsp",
-    "2000004.bsp",
-    "2136199.bsp"
+    "20002060.bsp",
+    "20000001.bsp",
+    "20000002.bsp",
+    "20000003.bsp",
+    "20000004.bsp",
+    "20136199.bsp"
   ]
 
   # ── validate whitelist ───────────────────────────────────────────────────
@@ -116,12 +117,12 @@ defmodule Angelus.Motor.KernelSetTest do
     assert {:ok, meta} = KernelSet.validate(existing_paths(tmp_dir))
 
     expected = [
-      {"2002060.bsp", "CHIRON", 2_002_060},
-      {"2000001.bsp", "CERES", 2_000_001},
-      {"2000002.bsp", "PALLAS", 2_000_002},
-      {"2000003.bsp", "JUNO", 2_000_003},
-      {"2000004.bsp", "VESTA", 2_000_004},
-      {"2136199.bsp", "ERIS", 2_136_199}
+      {"20002060.bsp", "CHIRON", 20_002_060},
+      {"20000001.bsp", "CERES", 20_000_001},
+      {"20000002.bsp", "PALLAS", 20_000_002},
+      {"20000003.bsp", "JUNO", 20_000_003},
+      {"20000004.bsp", "VESTA", 20_000_004},
+      {"20136199.bsp", "ERIS", 20_136_199}
     ]
 
     Enum.each(expected, fn {file, target, spice_id} ->

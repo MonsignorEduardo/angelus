@@ -4,6 +4,9 @@ defmodule Angelus.AstroTest do
 
   setup :verify_on_exit!
 
+  alias Angelus.Astro.Adapters.Spice
+  alias Angelus.Astro.Location
+
   @spice_mock Angelus.Astro.AdapterMock
 
   test "get_position accepts only an atom body" do
@@ -31,7 +34,7 @@ defmodule Angelus.AstroTest do
     assert Angelus.Astro.get_positions(
              [:sun],
              ~U[1990-05-24 06:30:00Z],
-             {40.4, -3.7, 667},
+             location(),
              SomeAdapter
            ) ==
              {:error, {:invalid_adapter, SomeAdapter}}
@@ -50,14 +53,14 @@ defmodule Angelus.AstroTest do
 
   test "get_positions with coordinates calls the adapter with observer coordinates" do
     datetime = ~U[1990-05-24 06:30:00Z]
-    coordinates = {40.4, -3.7, 667}
+    location = location()
 
-    expect(@spice_mock, :get_position, fn ^datetime, :sun, ^coordinates ->
+    expect(@spice_mock, :get_position, fn ^datetime, :sun, ^location ->
       {:ok, canned_body(:sun)}
     end)
 
     assert {:ok, %{sun: %Angelus.Astro.Body{}}} =
-             Angelus.Astro.get_positions([:sun], datetime, coordinates, @spice_mock)
+             Angelus.Astro.get_positions([:sun], datetime, location, @spice_mock)
   end
 
   test "get_positions validates datetime before body list" do
@@ -89,7 +92,7 @@ defmodule Angelus.AstroTest do
              [40.4, -3.7, 667],
              @spice_mock
            ) ==
-             {:error, :invalid_coordinates}
+             {:error, :invalid_location}
 
     assert Angelus.Astro.get_positions(
              [:sun],
@@ -97,7 +100,7 @@ defmodule Angelus.AstroTest do
              {"40.4", -3.7, 667},
              @spice_mock
            ) ==
-             {:error, :invalid_coordinates}
+             {:error, :invalid_location}
   end
 
   test "get_positions with coordinates validates latitude and longitude ranges" do
@@ -106,7 +109,7 @@ defmodule Angelus.AstroTest do
     assert Angelus.Astro.get_positions(
              [:sun],
              ~U[1990-05-24 06:30:00Z],
-             {91, -3.7, 667},
+             %Location{latitude: 91, longitude: -3.7, elevation_msl_m: 667},
              @spice_mock
            ) ==
              {:error, {:latitude_out_of_range, 91}}
@@ -114,7 +117,7 @@ defmodule Angelus.AstroTest do
     assert Angelus.Astro.get_positions(
              [:sun],
              ~U[1990-05-24 06:30:00Z],
-             {40.4, -181, 667},
+             %Location{latitude: 40.4, longitude: -181, elevation_msl_m: 667},
              @spice_mock
            ) ==
              {:error, {:longitude_out_of_range, -181}}
@@ -167,22 +170,22 @@ defmodule Angelus.AstroTest do
 
   test "get_positions with coordinates propagates mock adapter errors" do
     datetime = ~U[2000-01-01 00:00:00Z]
-    coordinates = {40.4, -3.7, 667}
+    location = location()
 
-    expect(@spice_mock, :get_position, fn ^datetime, :sun, ^coordinates ->
+    expect(@spice_mock, :get_position, fn ^datetime, :sun, ^location ->
       {:error, {:adapter_error, datetime}}
     end)
 
-    assert Angelus.Astro.get_positions([:sun], datetime, coordinates, @spice_mock) ==
+    assert Angelus.Astro.get_positions([:sun], datetime, location, @spice_mock) ==
              {:error, {:adapter_error, datetime}}
   end
 
-  test "SPICE adapter marks topocentric positions as unsupported until native support exists" do
-    assert Angelus.Astro.Adapters.Spice.get_position(
+  test "SPICE adapter rejects topocentric treatment of mathematical points" do
+    assert Spice.get_position(
              ~U[1990-05-24 06:30:00Z],
-             :sun,
-             {40.4, -3.7, 667}
-           ) == {:error, :topocentric_not_supported}
+             :true_node,
+             location()
+           ) == {:error, {:topocentric_not_applicable, :true_node}}
   end
 
   test "get_positions builds public body positions with the SPICE mock" do
@@ -275,6 +278,10 @@ defmodule Angelus.AstroTest do
     expect(@spice_mock, :get_position, 0, fn _, _, _ ->
       flunk("adapter should not be called")
     end)
+  end
+
+  defp location do
+    %Location{latitude: 40.4, longitude: -3.7, elevation_msl_m: 667}
   end
 
   defp canned_body(:sun) do

@@ -57,12 +57,12 @@ defmodule Angelus.Astro.CatalogTest do
 
   test "get_metadata returns minor planet metadata" do
     expected = %{
-      chiron: {"2002060", 2_002_060},
-      ceres: {"2000001", 2_000_001},
-      pallas: {"2000002", 2_000_002},
-      juno: {"2000003", 2_000_003},
-      vesta: {"2000004", 2_000_004},
-      eris: {"2136199", 2_136_199}
+      chiron: {"20002060", 20_002_060},
+      ceres: {"20000001", 20_000_001},
+      pallas: {"20000002", 20_000_002},
+      juno: {"20000003", 20_000_003},
+      vesta: {"20000004", 20_000_004},
+      eris: {"20136199", 20_136_199}
     }
 
     Enum.each(expected, fn {body, {spice_target, spice_id}} ->
@@ -88,6 +88,7 @@ defmodule Angelus.Astro.CatalogTest do
              "naif0012.tls",
              "pck00011.tpc",
              "gm_de440.tpc",
+             "earth_1962_250826_2125_combined.bpc",
              "de442.bsp",
              "mar099.bsp",
              "jup349.bsp",
@@ -97,12 +98,12 @@ defmodule Angelus.Astro.CatalogTest do
              "ura184_part-3.bsp",
              "nep105.bsp",
              "plu060.bsp",
-             "2002060.bsp",
-             "2000001.bsp",
-             "2000002.bsp",
-             "2000003.bsp",
-             "2000004.bsp",
-             "2136199.bsp"
+             "20002060.bsp",
+             "20000001.bsp",
+             "20000002.bsp",
+             "20000003.bsp",
+             "20000004.bsp",
+             "20136199.bsp"
            ]
   end
 
@@ -116,8 +117,8 @@ defmodule Angelus.Astro.CatalogTest do
              }
            } = kernels["de442.bsp"]
 
-    assert %{source: %{kind: :url, url: url, sha256: sha256}} = kernels["2002060.bsp"]
-    assert String.ends_with?(url, "/kernels-v0.1/2002060.bsp")
+    assert %{source: %{kind: :url, url: url, sha256: sha256}} = kernels["20002060.bsp"]
+    assert String.ends_with?(url, "/kernels-v0.1/20002060.bsp")
     assert byte_size(sha256) == 64
   end
 

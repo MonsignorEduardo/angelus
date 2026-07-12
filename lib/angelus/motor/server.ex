@@ -62,7 +62,7 @@ defmodule Angelus.Motor.Server do
 
     case KernelSet.validate(paths) do
       {:error, reason} ->
-        Logger.warning("SPICE kernel validation failed", reason: inspect(reason))
+        Logger.debug("SPICE kernel validation failed", reason: inspect(reason))
         {:reply, {:error, reason}, state}
 
       {:ok, _metadata} when state.port == nil ->
@@ -85,6 +85,14 @@ defmodule Angelus.Motor.Server do
 
   # body/math_point: return kernels_not_loaded when no kernels (covers nil port too)
   def handle_call({:body, _target, _utc}, _from, %{kernel_state: state_name} = state)
+      when state_name != :loaded,
+      do: {:reply, {:error, :kernels_not_loaded}, state}
+
+  def handle_call(
+        {:topocentric_body, _target, _utc, _observer},
+        _from,
+        %{kernel_state: state_name} = state
+      )
       when state_name != :loaded,
       do: {:reply, {:error, :kernels_not_loaded}, state}
 
@@ -112,6 +120,33 @@ defmodule Angelus.Motor.Server do
 
       {:error, reason} ->
         Logger.error("Failed to write body request to worker", reason: inspect(reason))
+
+        {:reply, {:error, :worker_write_failed},
+         restart_worker(state, {:error, :worker_restarted})}
+    end
+  end
+
+  def handle_call({:topocentric_body, target, utc, observer}, from, state) do
+    iso8601 = DateTime.to_iso8601(utc)
+    {id, new_state} = next_id(state)
+
+    meta = %{
+      observer: observer,
+      abcorr: "CN+S",
+      frame_base: "ECLIPJ2000",
+      state: :topocentric,
+      kernel_metadata: state.metadata
+    }
+
+    payload = WorkerProtocol.encode_topocentric_body(id, target, iso8601, observer)
+
+    case send_to_port(state.port, payload) do
+      :ok ->
+        waiter = %{kind: :topocentric_body, from: from, meta: meta}
+        {:noreply, put_pending(new_state, id, waiter)}
+
+      {:error, reason} ->
+        Logger.error("Failed to write topocentric body request", reason: inspect(reason))
 
         {:reply, {:error, :worker_write_failed},
          restart_worker(state, {:error, :worker_restarted})}
@@ -213,6 +248,12 @@ defmodule Angelus.Motor.Server do
   @doc "Combined UTC -> ET -> body state round-trip via the native worker."
   @spec get_body(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
   def get_body(target, utc), do: call({:body, target, utc})
+
+  @doc "Returns a body state relative to an Earth-fixed observer."
+  @spec get_topocentric_body(String.t(), DateTime.t(), map()) ::
+          {:ok, map()} | {:error, term()}
+  def get_topocentric_body(target, utc, observer),
+    do: call({:topocentric_body, target, utc, observer})
 
   @doc "Returns a mathematical point state via the native worker."
   @spec get_math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
@@ -385,6 +426,18 @@ defmodule Angelus.Motor.Server do
 
   defp handle_pending_reply(%{kind: :body, from: from, meta: meta}, result, id, remaining, state) do
     Logger.debug("Body state completed", request_id: id)
+    GenServer.reply(from, handle_body_result(result, meta))
+    {:noreply, %{state | pending: remaining}}
+  end
+
+  defp handle_pending_reply(
+         %{kind: :topocentric_body, from: from, meta: meta},
+         result,
+         id,
+         remaining,
+         state
+       ) do
+    Logger.debug("Topocentric body state completed", request_id: id)
     GenServer.reply(from, handle_body_result(result, meta))
     {:noreply, %{state | pending: remaining}}
   end

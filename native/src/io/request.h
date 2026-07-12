@@ -16,6 +16,7 @@ typedef enum {
   ACTION_CLEAR_KERNELS,
   ACTION_LOAD_KERNELS,
   ACTION_BODY,
+  ACTION_TOPOCENTRIC_BODY,
   ACTION_MATH_POINT,
 } ActionName;
 
@@ -28,6 +29,14 @@ typedef struct {
   const char *target;
   const char *utc;
 } BodyArgs;
+
+typedef struct {
+  const char *target;
+  const char *utc;
+  double latitude_degrees;
+  double longitude_degrees;
+  double ellipsoidal_height_m;
+} TopocentricBodyArgs;
 
 typedef struct {
   const char *point;
@@ -44,6 +53,7 @@ typedef struct {
   union {
     LoadKernelsArgs load_kernels;
     BodyArgs body;
+    TopocentricBodyArgs topocentric_body;
     MathPointArgs math_point;
   } args;
 } ParsedAction;

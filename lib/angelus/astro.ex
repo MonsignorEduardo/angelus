@@ -2,6 +2,7 @@ defmodule Angelus.Astro do
   @moduledoc "Public v0.1 API for astronomical body states and mathematical points."
 
   alias Angelus.Astro.Body
+  alias Angelus.Astro.Location
   alias Angelus.Astro.Point
 
   @range_from ~D[1900-01-01]
@@ -13,9 +14,9 @@ defmodule Angelus.Astro do
   @type adapter :: module()
 
   @typedoc """
-  Topocentric observer coordinates as `{latitude_degrees, longitude_degrees, altitude_meters}`.
+  Validated topocentric observer location.
   """
-  @type coordinates :: {number(), number(), number()}
+  @type location :: Location.t()
 
   @doc """
   Returns geocentric positions for a list of celestial bodies at a UTC datetime.
@@ -61,19 +62,19 @@ defmodule Angelus.Astro do
   @doc """
   Returns topocentric positions for a list of celestial bodies at a UTC datetime.
 
-  `coordinates` must be `{latitude_degrees, longitude_degrees, altitude_meters}`.
-  Latitude must be in `[-90, 90]`; longitude must be in `[-180, 180]`.
+  `location` contains geodetic latitude/longitude and elevation above mean sea
+  level. Build it with `Angelus.Astro.Location.new/1`.
   """
-  @spec get_positions([atom(), ...], DateTime.t(), coordinates(), adapter()) ::
+  @spec get_positions([atom(), ...], DateTime.t(), location(), adapter()) ::
           {:ok, %{atom() => Body.t() | Point.t()}} | {:error, term()}
-  def get_positions(bodies, datetime, coordinates, adapter) do
+  def get_positions(bodies, datetime, location, adapter) do
     with {:ok, adapter} <- validate_adapter(adapter, 3),
          :ok <- validate_datetime(datetime),
          :ok <- validate_body_list_shape(bodies),
          :ok <- validate_duplicates(bodies),
          :ok <- validate_public_range(datetime),
-         :ok <- validate_coordinates(coordinates) do
-      build_positions(bodies, datetime, coordinates, adapter)
+         {:ok, location} <- Location.validate(location) do
+      build_positions(bodies, datetime, location, adapter)
     end
   end
 
@@ -86,9 +87,9 @@ defmodule Angelus.Astro do
     end)
   end
 
-  defp build_positions(bodies, datetime, coordinates, adapter) do
+  defp build_positions(bodies, datetime, location, adapter) do
     Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
-      case adapter.get_position(datetime, body, coordinates) do
+      case adapter.get_position(datetime, body, location) do
         {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end
@@ -125,17 +126,6 @@ defmodule Angelus.Astro do
       body -> {:error, {:duplicate_body, body}}
     end
   end
-
-  defp validate_coordinates({latitude, longitude, altitude})
-       when is_number(latitude) and is_number(longitude) and is_number(altitude) do
-    cond do
-      latitude < -90 or latitude > 90 -> {:error, {:latitude_out_of_range, latitude}}
-      longitude < -180 or longitude > 180 -> {:error, {:longitude_out_of_range, longitude}}
-      true -> :ok
-    end
-  end
-
-  defp validate_coordinates(_coordinates), do: {:error, :invalid_coordinates}
 
   defp validate_public_range(%DateTime{} = datetime) do
     date = DateTime.to_date(datetime)

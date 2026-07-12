@@ -35,6 +35,26 @@ defmodule Angelus.Motor.WorkerProtocolTest do
     refute Map.has_key?(decoded, "units")
   end
 
+  test "encode_topocentric_body includes the ellipsoidal observer" do
+    observer = %{latitude: 40.4168, longitude: -3.7038, ellipsoidal_height_m: 708.66}
+
+    json =
+      WorkerProtocol.encode_topocentric_body(
+        5,
+        "MOON",
+        "2000-01-01T12:00:00Z",
+        observer
+      )
+
+    assert {:ok, decoded} = Jason.decode(json)
+    assert decoded["id"] == 5
+    assert decoded["op"] == "topocentric_body"
+    assert decoded["target"] == "MOON"
+    assert decoded["latitude_degrees"] == 40.4168
+    assert decoded["longitude_degrees"] == -3.7038
+    assert decoded["ellipsoidal_height_m"] == 708.66
+  end
+
   test "encode_math_point includes point and utc" do
     json = WorkerProtocol.encode_math_point(6, "TRUE_NODE", "2000-01-01T12:00:00Z")
 

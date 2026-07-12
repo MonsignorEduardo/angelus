@@ -1,6 +1,8 @@
 defmodule Angelus.MotorTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Angelus.Astro.Catalog
   alias Angelus.Motor.Server
 
@@ -47,7 +49,7 @@ defmodule Angelus.MotorTest do
     assert {:ok, metadata} = Angelus.Motor.load_kernels(replace: true)
     assert Enum.all?(metadata.kernels, &String.starts_with?(&1.path, expected_base <> "/"))
 
-    restart_worker()
+    capture_log(&restart_worker/0)
   end
 
   test "get_body validates target and datetime before native calls" do
@@ -94,9 +96,10 @@ defmodule Angelus.MotorTest do
         %{state | pending: %{99 => waiter}, kernel_state: :loaded, metadata: %{test: true}}
       end).port
 
-    send(Server, {:request_timeout, 99})
-
-    assert_receive {^tag, {:error, :worker_timeout}}, 1_000
+    capture_log(fn ->
+      send(Server, {:request_timeout, 99})
+      assert_receive {^tag, {:error, :worker_timeout}}, 1_000
+    end)
 
     state = :sys.get_state(Server)
     assert state.pending == %{}
@@ -117,9 +120,10 @@ defmodule Angelus.MotorTest do
         %{state | pending: %{100 => waiter}, kernel_state: :loaded, metadata: %{test: true}}
       end).port
 
-    send(Server, {old_port, {:data, "not json"}})
-
-    assert_receive {^tag, {:error, :worker_protocol_error}}, 1_000
+    capture_log(fn ->
+      send(Server, {old_port, {:data, "not json"}})
+      assert_receive {^tag, {:error, :worker_protocol_error}}, 1_000
+    end)
 
     state = :sys.get_state(Server)
     assert state.pending == %{}

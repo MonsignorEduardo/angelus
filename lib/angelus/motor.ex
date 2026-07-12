@@ -98,6 +98,16 @@ defmodule Angelus.Motor do
 
   def get_body(_target, _utc), do: {:error, :invalid_args}
 
+  @doc "Returns a body state relative to a validated Earth-fixed observer."
+  @spec get_topocentric_body(String.t(), DateTime.t(), map()) ::
+          {:ok, map()} | {:error, term()}
+  def get_topocentric_body(target, %DateTime{} = utc, observer)
+      when is_binary(target) and is_map(observer) do
+    Server.get_topocentric_body(target, utc, observer)
+  end
+
+  def get_topocentric_body(_target, _utc, _observer), do: {:error, :invalid_args}
+
   @doc "Returns a mathematical point longitude/speed result from the native worker."
   @spec get_math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
   def get_math_point(point, %DateTime{} = utc) when is_binary(point),

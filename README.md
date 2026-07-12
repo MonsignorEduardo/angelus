@@ -97,11 +97,14 @@ Install the single supported v0.1 kernel set:
 
 ```bash
 mix angelus.kernels
+mix angelus.geoid
 ```
 
 This downloads the generic JPL/NAIF kernels and pinned JPL Horizons minor-planet
 SPKs into `priv/kernels/`. Every pinned SPK is verified against its catalogued
 SHA-256 checksum. The task does not load kernels at runtime.
+`mix angelus.geoid` installs the EGM2008 2.5-minute grid used to convert
+mean-sea-level elevations to WGS84 ellipsoidal heights.
 
 Load kernels explicitly before calculating positions:
 
@@ -122,9 +125,24 @@ Query one body at a time with `Angelus.get_position/3`:
 sun.longitude
 ```
 
+Topocentric body states accept a validated Earth location:
+
+```elixir
+{:ok, location} =
+  Angelus.Astro.Location.new(
+    latitude: 40.4168,
+    longitude: -3.7038,
+    elevation_msl_m: 657
+  )
+
+{:ok, moon} =
+  Angelus.get_position(:moon, ~U[2000-01-01 12:00:00Z], location, adapter)
+```
+
 Position calls take an explicit adapter and do not accept ephemeris options.
-The SPICE adapter uses geocentric Earth-observed positions in `ECLIPJ2000` with
-converged Newtonian stellar aberration (`CN+S`).
+The SPICE adapter expresses both geocentric and topocentric states in
+`ECLIPJ2000` with converged Newtonian stellar aberration (`CN+S`). Topocentric
+observers use EGM2008 elevation conversion and the `ITRF93` Earth-fixed frame.
 
 Generate a CSV-style ephemeris for all supported bodies from the Mix task:
 
@@ -157,6 +175,7 @@ Angelus.load_kernels([
   "/opt/angelus/kernels/naif0012.tls",
   "/opt/angelus/kernels/pck00011.tpc",
   "/opt/angelus/kernels/gm_de440.tpc",
+  "/opt/angelus/kernels/earth_1962_250826_2125_combined.bpc",
   "/opt/angelus/kernels/de442.bsp",
   "/opt/angelus/kernels/mar099.bsp",
   "/opt/angelus/kernels/jup349.bsp",
@@ -166,12 +185,12 @@ Angelus.load_kernels([
   "/opt/angelus/kernels/ura184_part-3.bsp",
   "/opt/angelus/kernels/nep105.bsp",
   "/opt/angelus/kernels/plu060.bsp",
-  "/opt/angelus/kernels/2002060.bsp",
-  "/opt/angelus/kernels/2000001.bsp",
-  "/opt/angelus/kernels/2000002.bsp",
-  "/opt/angelus/kernels/2000003.bsp",
-  "/opt/angelus/kernels/2000004.bsp",
-  "/opt/angelus/kernels/2136199.bsp"
+  "/opt/angelus/kernels/20002060.bsp",
+  "/opt/angelus/kernels/20000001.bsp",
+  "/opt/angelus/kernels/20000002.bsp",
+  "/opt/angelus/kernels/20000003.bsp",
+  "/opt/angelus/kernels/20000004.bsp",
+  "/opt/angelus/kernels/20136199.bsp"
 ])
 ```
 

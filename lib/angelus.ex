@@ -23,6 +23,8 @@ defmodule Angelus do
   See `Angelus.Astro` and `Angelus.Motor` for the full API.
   """
 
+  alias Angelus.Astro.Adapters.Spice
+
   @version Mix.Project.config()[:version]
 
   @doc "Returns the Angelus library version."
@@ -48,6 +50,21 @@ defmodule Angelus do
 
   def get_position(_body, _datetime, _adapter), do: {:error, :invalid_body}
 
+  @doc "Returns one topocentric body position for a validated Earth location."
+  @spec get_position(
+          atom(),
+          DateTime.t(),
+          Angelus.Astro.location(),
+          Angelus.Astro.adapter()
+        ) :: {:ok, Angelus.Astro.Body.t() | Angelus.Astro.Point.t()} | {:error, term()}
+  def get_position(body, datetime, location, adapter) when is_atom(body) do
+    with {:ok, positions} <- get_positions([body], datetime, location, adapter) do
+      {:ok, Map.fetch!(positions, body)}
+    end
+  end
+
+  def get_position(_body, _datetime, _location, _adapter), do: {:error, :invalid_body}
+
   @doc """
   Returns the geocentric positions of a list of bodies at the given UTC datetime.
 
@@ -61,19 +78,19 @@ defmodule Angelus do
   @doc """
   Returns topocentric positions for a list of bodies at the given UTC datetime.
 
-  `coordinates` must be `{latitude_degrees, longitude_degrees, altitude_meters}`.
+  `location` must be a validated `Angelus.Astro.Location`.
 
   Delegates to `Angelus.Astro.get_positions/4`.
   """
   @spec get_positions(
           [atom(), ...],
           DateTime.t(),
-          Angelus.Astro.coordinates(),
+          Angelus.Astro.location(),
           Angelus.Astro.adapter()
         ) ::
           {:ok, %{atom() => Angelus.Astro.Body.t() | Angelus.Astro.Point.t()}}
           | {:error, term()}
-  defdelegate get_positions(bodies, datetime, coordinates, adapter), to: Angelus.Astro
+  defdelegate get_positions(bodies, datetime, location, adapter), to: Angelus.Astro
 
   @doc """
   Loads the default v0.1 SPICE kernel set from `priv/kernels/` and returns
@@ -82,7 +99,7 @@ defmodule Angelus do
   Use `Angelus.Motor.load_kernels/0` directly when kernel metadata is needed.
   """
   @spec load_kernels() :: {:ok, Angelus.Astro.adapter()} | {:error, term()}
-  def load_kernels, do: Angelus.Astro.Adapters.Spice.prepare_adapter()
+  def load_kernels, do: Spice.prepare_adapter()
 
   @doc """
   Loads SPICE kernels with options or explicit paths and returns the prepared
@@ -92,5 +109,5 @@ defmodule Angelus do
   """
   @spec load_kernels([Angelus.Motor.load_kernel_option()] | [String.t()]) ::
           {:ok, Angelus.Astro.adapter()} | {:error, term()}
-  def load_kernels(paths_or_opts), do: Angelus.Astro.Adapters.Spice.prepare_adapter(paths_or_opts)
+  def load_kernels(paths_or_opts), do: Spice.prepare_adapter(paths_or_opts)
 end

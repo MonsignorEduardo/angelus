@@ -40,6 +40,17 @@ static int handle_body(int id, const BodyArgs *args) {
     return send_error(id, result.error);
 }
 
+static int handle_topocentric_body(int id, const TopocentricBodyArgs *args) {
+  BodyResult result = get_topocentric_position(
+      args->target, args->utc, args->latitude_degrees,
+      args->longitude_degrees, args->ellipsoidal_height_m);
+
+  if (result.ok)
+    return send_ok_body(id, &result.state);
+  else
+    return send_error(id, result.error);
+}
+
 static int handle_math_point(int id, const MathPointArgs *args) {
   PointResult result = ops_math_point(args->point, args->utc);
 
@@ -59,6 +70,8 @@ static int dispatch_action(ParsedAction *action) {
     return handle_load_kernels(action->id, &action->args.load_kernels);
   case ACTION_BODY:
     return handle_body(action->id, &action->args.body);
+  case ACTION_TOPOCENTRIC_BODY:
+    return handle_topocentric_body(action->id, &action->args.topocentric_body);
   case ACTION_MATH_POINT:
     return handle_math_point(action->id, &action->args.math_point);
   case ACTION_UNKNOWN: {

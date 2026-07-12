@@ -120,6 +120,24 @@ jobs:
       - name: Get deps
         run: mix deps.get
 
+      - name: Cache JPL/NAIF kernels
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: priv/kernels
+          key: kernels-v0.1-${{ hashFiles('lib/angelus/astro/catalog.ex') }}
+
+      - name: Download and validate kernels
+        run: mix angelus.kernels
+
+      - name: Cache EGM2008 geoid
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: priv/geoid
+          key: egm2008-2-5-${{ hashFiles('lib/mix/tasks/geoid.ex') }}
+
+      - name: Download and validate EGM2008
+        run: mix angelus.geoid
+
       - name: E2E tests (CSPICE + Horizons)
         run: mix test test/e2e --include e2e
 

@@ -113,9 +113,7 @@ defmodule Mix.Tasks.Angelus.Ephemeridde do
   end
 
   defp format_row(values) do
-    values
-    |> Enum.map(&to_string/1)
-    |> Enum.join(",")
+    Enum.map_join(values, ",", &to_string/1)
   end
 
   defp format_vector({x, y, z}), do: "#{x};#{y};#{z}"

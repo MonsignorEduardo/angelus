@@ -53,6 +53,26 @@ defmodule Angelus.Motor.NativeProtocolTest do
              request(port, %{"id" => 6, "op" => "load_kernels", "paths" => paths})
   end
 
+  test "rejects invalid topocentric observers and continues serving", %{port: port} do
+    assert %{
+             "id" => 7,
+             "ok" => false,
+             "error" => "invalid topocentric_body arguments"
+           } =
+             request(port, %{
+               "id" => 7,
+               "op" => "topocentric_body",
+               "target" => "MOON",
+               "utc" => "2000-01-01T12:00:00Z",
+               "latitude_degrees" => 91,
+               "longitude_degrees" => 0,
+               "ellipsoidal_height_m" => 0
+             })
+
+    assert %{"id" => 8, "ok" => true, "result" => "pong"} =
+             request(port, %{"id" => 8, "op" => "ping"})
+  end
+
   defp request(port, payload) do
     true = Port.command(port, Jason.encode!(payload))
 
