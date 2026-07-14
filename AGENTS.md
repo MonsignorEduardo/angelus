@@ -23,7 +23,7 @@
 
 ## Native Build And Kernels
 
-- Source builds need a C compiler, Meson, Ninja, `curl`, `jq`, and system `libcjson`/`cjson` headers; CI installs `build-essential curl jq meson ninja-build libcjson-dev`.
+- Source builds need a C compiler, Meson `>= 1.11.1`, Ninja, `curl`, `jq`, and system `libcjson`/`cjson` headers; CI installs Meson with `pip` because Ubuntu's package is too old.
 - Meson fetches CSPICE and ERFA through `native/subprojects/*.wrap`; the worker installs to the compiled app's `priv/angelus_worker` via `MIX_APP_PATH`.
 - Runtime resources are not bundled in Hex packages; `mix angelus.prepare` downloads the required generic kernels and the pinned Quirón SPK, then verifies its SHA-256 checksum.
 - Kernel files land in `priv/kernels/`; `Angelus.get_ephemeride/1` loads them internally.

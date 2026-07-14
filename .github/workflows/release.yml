@@ -40,7 +40,7 @@ jobs:
           echo "Example: git tag ${RELEASE_TAG} && git push origin ${RELEASE_TAG}"
           exit 1
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
@@ -102,12 +102,12 @@ jobs:
       ANGELUS_FORCE_BUILD: "1"
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
           persist-credentials: false
 
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -115,16 +115,12 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
+          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip
+          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Get deps
         run: mix deps.get
-
-      - name: Cache JPL/NAIF kernels
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: priv/kernels
-          key: kernels-v0.2-${{ hashFiles('lib/angelus/astro/catalog.ex') }}
 
       - name: Download and validate kernels
         run: mix angelus.prepare
@@ -143,12 +139,12 @@ jobs:
       ANGELUS_WORKER: ${{ github.workspace }}/_build/test/lib/angelus/priv/angelus_worker
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
           persist-credentials: false
 
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -157,7 +153,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip valgrind
-          python3 -m pip install --break-system-packages 'meson>=1.11.1'
+          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Get deps
         run: mix deps.get
@@ -180,12 +177,12 @@ jobs:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
 
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -223,12 +220,12 @@ jobs:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
 
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -236,7 +233,9 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
+          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip
+          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Get Elixir deps
         run: mix deps.get
@@ -268,12 +267,12 @@ jobs:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
 
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -281,7 +280,9 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq meson ninja-build libcjson-dev
+          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip
+          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Get Elixir deps
         run: mix deps.get
@@ -313,12 +314,12 @@ jobs:
       MIX_ENV: prod
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
 
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -347,12 +348,12 @@ jobs:
       MIX_ENV: dev
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
 
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
