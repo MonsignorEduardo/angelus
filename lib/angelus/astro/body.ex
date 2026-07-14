@@ -8,6 +8,12 @@ defmodule Angelus.Astro.Body do
     :distance_au,
     :light_time_seconds,
     :et_seconds,
+    :longitude,
+    :latitude,
+    :longitude_rad,
+    :latitude_rad,
+    :declination,
+    :declination_rad,
     :metadata
   ]
 
@@ -22,7 +28,9 @@ defmodule Angelus.Astro.Body do
   * `:distance_au` - distance from Earth to the body in astronomical units.
   * `:light_time_seconds` - one-way light time from target to observer.
   * `:et_seconds` - ephemeris time / TDB seconds past J2000.
-  * `:metadata` - internal metadata map (engine, kernels, SPICE settings, etc.).
+  * `:longitude` and `:latitude` - tropical true-ecliptic coordinates of date in degrees.
+   * `:longitude_rad` and `:latitude_rad` - the same coordinates in radians.
+   * `:declination` and `:declination_rad` - true-equatorial declination of date.
   """
   @type t() :: %__MODULE__{
           body: atom(),
@@ -31,6 +39,12 @@ defmodule Angelus.Astro.Body do
           distance_au: float() | nil,
           light_time_seconds: float() | nil,
           et_seconds: float() | nil,
+          longitude: float() | nil,
+          latitude: float() | nil,
+          longitude_rad: float() | nil,
+          latitude_rad: float() | nil,
+          declination: float() | nil,
+          declination_rad: float() | nil,
           metadata: map() | nil
         }
 end

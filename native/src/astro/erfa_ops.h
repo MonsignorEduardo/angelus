@@ -8,9 +8,8 @@
 #include "result.h"
 
 typedef enum {
-  ERFA_CALC_MEAN_LUNAR_NODE = 0,
-  ERFA_CALC_TRUE_LUNAR_NODE = 1,
-  ERFA_CALC_MEAN_LUNAR_APOGEE = 2,
+  ERFA_CALC_TRUE_LUNAR_NODE = 0,
+  ERFA_CALC_TRUE_LUNAR_APOGEE = 1,
 } ErfaCalcType;
 
 PointResult ops_math_point(const char *point, const char *iso8601);

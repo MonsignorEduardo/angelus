@@ -1,27 +1,11 @@
-# Angelus
+# Angelus [![Hex Version](https://img.shields.io/hexpm/v/angelus.svg)](https://hex.pm/packages/angelus) [![Hex Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://angelus.hexdocs.pm/readme.html)
 
-Angelus is an Elixir ephemeris library backed by NAIF CSPICE and JPL kernels.
-It provides geocentric ecliptic positions for a small, explicit set of
-astrological bodies while keeping kernel loading and native SPICE integration
-visible to the caller.
-
-The v0.1 scope is intentionally limited to ephemeris generation. Natal charts,
-houses, aspects, orbs, dignities, transits, and other chart-level features are
-out of scope for this release.
-
-## Features
-
-- Geocentric positions in the `ECLIPJ2000` frame with `CN+S` aberration correction.
-- Ecliptic longitude, latitude, distance in AU, position vectors, velocity
-  vectors, and light-time metadata.
-- Default v0.1 JPL/NAIF kernel policy using DE442 and companion body-center
-  kernels.
-- Explicit runtime kernel loading; kernels are not loaded implicitly.
-- Native SPICE worker distributed as precompiled release artefacts for supported platforms.
+Angelus is an Elixir library that returns one geocentric tropical ephemeris for
+a supplied instant. Its only public API is `Angelus.get_ephemeride/1`.
 
 ## Supported Bodies
 
-Angelus v0.1 supports these public body atoms:
+Angelus 1.0.0 returns these body atoms in a fixed order:
 
 ```elixir
 [
@@ -35,14 +19,10 @@ Angelus v0.1 supports these public body atoms:
   :uranus,
   :neptune,
   :pluto,
-  :true_node,
+  :north_node,
+  :south_node,
   :lilith,
-  :chiron,
-  :ceres,
-  :pallas,
-  :juno,
-  :vesta,
-  :eris
+  :chiron
 ]
 ```
 
@@ -50,30 +30,19 @@ The public datetime range is `1900-01-01` through `2100-01-24`, inclusive.
 
 ## Installation
 
-Angelus is not yet published to Hex. Add it from Git while the package is under
-development:
+Angelus is not yet published to Hex. Add it from Git:
 
 ```elixir
 def deps do
   [
-    {:angelus, github: "MonsignorEduardo/angelus", tag: "v0.0.2"}
-  ]
-end
-```
-
-When published to Hex, the dependency will be:
-
-```elixir
-def deps do
-  [
-    {:angelus, "~> 0.0.2"}
+    {:angelus, github: "MonsignorEduardo/angelus", branch: "master"}
   ]
 end
 ```
 
 ## Requirements
 
-- Elixir `~> 1.19`.
+- Elixir `~> 1.20.2` on Erlang/OTP `29.0.3`.
 - For supported platforms, no local C compiler or CSPICE installation is required when installing from Hex.
 - Local source builds require a C compiler available as `cc`, plus Meson, Ninja,
   and the native dependencies used by the Meson subprojects.
@@ -93,135 +62,39 @@ mix compile
 
 When installed from Hex on one of those supported platforms, compilation downloads the matching precompiled `angelus_worker`. Local development in this repository can force a source build with `ANGELUS_FORCE_BUILD=1` or `just build`.
 
-Install the single supported v0.1 kernel set:
+Install the complete Angelus runtime data:
 
 ```bash
-mix angelus.kernels
-mix angelus.geoid
+mix angelus.prepare
 ```
 
-This downloads the generic JPL/NAIF kernels and pinned JPL Horizons minor-planet
-SPKs into `priv/kernels/`. Every pinned SPK is verified against its catalogued
-SHA-256 checksum. The task does not load kernels at runtime.
-`mix angelus.geoid` installs the EGM2008 2.5-minute grid used to convert
-mean-sea-level elevations to WGS84 ellipsoidal heights.
+This downloads the JPL/NAIF kernels and the pinned Quirón SPK into
+`priv/kernels/`. The pinned SPK is verified against its catalogued SHA-256
+checksum.
 
-Load kernels explicitly before calculating positions:
+Calculate an ephemeris. Kernels load automatically on the first call:
 
 ```elixir
-{:ok, adapter} = Angelus.load_kernels()
+{:ok, ephemeride} = Angelus.get_ephemeride(~U[1990-05-24 06:30:00Z])
 
-{:ok, positions} = Angelus.get_positions([:sun, :moon], ~U[1990-05-24 06:30:00Z], adapter)
-
-positions.sun.longitude
-positions.moon.distance_au
+ephemeride.sidereal_time
+ephemeride.positions
 ```
 
-Query one body at a time with `Angelus.get_position/3`:
+Each result includes the UTC instant, weekday, Greenwich sidereal time, and
+the positions in this fixed order. Every position contains ecliptic latitude
+(`lat`), true-equatorial declination (`decl`), and direct/retrograde/stationary
+motion. All angular values are expressed in degrees; Angelus does not expose
+zodiac signs or formatted ecliptic longitudes.
+`ephemeride.reference` identifies Earth as the geocentric observer and supplies
+the PCK ellipsoid radii in km, flattening, coordinate frame, and aberration
+correction used by the calculation.
 
-```elixir
-{:ok, sun} = Angelus.get_position(:sun, ~U[2000-01-01 12:00:00Z], adapter)
-
-sun.longitude
-```
-
-Topocentric body states accept a validated Earth location:
-
-```elixir
-{:ok, location} =
-  Angelus.Astro.Location.new(
-    latitude: 40.4168,
-    longitude: -3.7038,
-    elevation_msl_m: 657
-  )
-
-{:ok, moon} =
-  Angelus.get_position(:moon, ~U[2000-01-01 12:00:00Z], location, adapter)
-```
-
-Position calls take an explicit adapter and do not accept ephemeris options.
-The SPICE adapter expresses both geocentric and topocentric states in
-`ECLIPJ2000` with converged Newtonian stellar aberration (`CN+S`). Topocentric
-observers use EGM2008 elevation conversion and the `ITRF93` Earth-fixed frame.
-
-Generate a CSV-style ephemeris for all supported bodies from the Mix task:
+Print the same result in a terminal with an ISO 8601 instant:
 
 ```bash
-mix angelus.ephemeridde 1998-07-18T05:00:00Z
+mix angelus.ephemeride 2000-01-01T07:00:00-05:00
 ```
-
-## Kernel Loading
-
-`Angelus.load_kernels/0` loads the single supported kernel set from
-`priv/kernels/`.
-
-Use `:base_path` when kernels live somewhere else:
-
-```elixir
-Angelus.load_kernels(base_path: "/opt/angelus/kernels")
-```
-
-Use `:replace` to clear an already-loaded kernel set before loading another
-one:
-
-```elixir
-Angelus.load_kernels(base_path: "/opt/angelus/kernels", replace: true)
-```
-
-You can also pass explicit absolute kernel paths:
-
-```elixir
-Angelus.load_kernels([
-  "/opt/angelus/kernels/naif0012.tls",
-  "/opt/angelus/kernels/pck00011.tpc",
-  "/opt/angelus/kernels/gm_de440.tpc",
-  "/opt/angelus/kernels/earth_1962_250826_2125_combined.bpc",
-  "/opt/angelus/kernels/de442.bsp",
-  "/opt/angelus/kernels/mar099.bsp",
-  "/opt/angelus/kernels/jup349.bsp",
-  "/opt/angelus/kernels/sat459.bsp",
-  "/opt/angelus/kernels/ura184_part-1.bsp",
-  "/opt/angelus/kernels/ura184_part-2.bsp",
-  "/opt/angelus/kernels/ura184_part-3.bsp",
-  "/opt/angelus/kernels/nep105.bsp",
-  "/opt/angelus/kernels/plu060.bsp",
-  "/opt/angelus/kernels/20002060.bsp",
-  "/opt/angelus/kernels/20000001.bsp",
-  "/opt/angelus/kernels/20000002.bsp",
-  "/opt/angelus/kernels/20000003.bsp",
-  "/opt/angelus/kernels/20000004.bsp",
-  "/opt/angelus/kernels/20136199.bsp"
-])
-```
-
-Explicit paths must form the exact supported v0.1 kernel set. See
-`Angelus.Motor.default_kernel_files/0` for the filenames.
-
-## Return Values
-
-Position APIs return tagged tuples:
-
-```elixir
-{:ok, %Angelus.Astro.Body{}}
-{:ok, %{sun: %Angelus.Astro.Body{}, moon: %Angelus.Astro.Body{}, true_node: %Angelus.Astro.Point{}}}
-{:error, reason}
-```
-
-`Angelus.Astro.Body` includes:
-
-- `:longitude` - geocentric ecliptic longitude in degrees, normalized to
-  `[0, 360)`.
-- `:latitude` - geocentric ecliptic latitude in degrees.
-- `:distance_au` - distance from Earth in astronomical units.
-- `:position_km` and `:velocity_km_s` - SPICE state vectors.
-- `:longitude_rad` and `:speed_rad_day` - mathematical point longitude and speed.
-- `:et_seconds` - ephemeris time / TDB seconds past J2000.
-- `:body`, `:spice_target`, `:spice_id`, and `:target_kind` - body catalog
-  metadata.
-- `:metadata` - engine, kernel, target, observer, frame, and version metadata.
-
-`Angelus.Astro.Point` includes `:point`, `:longitude_rad`, `:speed_rad_day`,
-`:et_seconds`, and `:metadata`.
 
 ## Development
 
@@ -246,19 +119,18 @@ If you have `just` installed, the repository also provides:
 just build             # compile with CSPICE support
 just build-stub        # compile stub worker only, no CSPICE download
 just test              # run test/unit only
-just test-integration  # build with CSPICE and run e2e Horizons validation tests
+just test-integration  # build with CSPICE and run e2e tests
 just test-e2e          # alias for test-integration
 just clean             # remove local build outputs and downloaded native libraries
 ```
 
-Unit tests live under `test/unit` and run without CSPICE by using validation-only paths or test support mocks. E2e tests live under `test/e2e` and require the real CSPICE worker, downloaded kernels, and a real JPL Horizons fixture at `test/support/fixtures/horizons/de442_positions.json`.
+Unit tests live under `test/unit`. Integration tests require the real CSPICE
+worker and downloaded kernels.
 
 ## Kernel and Data Licensing
 
-Angelus does not include third-party astrological ephemeris code. Generic
-JPL/NAIF kernels, including pinned JPL Horizons minor-planet SPKs, are
-downloaded separately. All kernels remain subject to their respective
-terms.
+Angelus does not include third-party ephemeris data. JPL/NAIF kernels and the
+Quirón SPK are downloaded separately and remain subject to their respective terms.
 
 The source code in this repository is MIT licensed. Native artefacts include
 components from NAIF CSPICE, distributed under NAIF's respective terms.

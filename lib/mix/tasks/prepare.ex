@@ -1,5 +1,5 @@
-defmodule Mix.Tasks.Angelus.Kernels do
-  @moduledoc "Downloads the v0.1 JPL/NAIF kernel set."
+defmodule Mix.Tasks.Angelus.Prepare do
+  @moduledoc "Downloads and validates Angelus runtime kernels."
 
   use Mix.Task
 
@@ -8,14 +8,16 @@ defmodule Mix.Tasks.Angelus.Kernels do
 
   @download_step_bytes 1_000_000
 
-  @doc "Downloads and validates the v0.1 JPL/NAIF kernel set."
+  @doc "Downloads and validates the kernels required by `Angelus.get_ephemeride/1`."
   @impl true
   @spec run([String.t()]) :: :ok | no_return()
   def run(args) do
+    Logger.configure(level: :warning)
+
     {opts, rest, invalid} = OptionParser.parse(args, strict: [force: :boolean])
 
     if rest != [] or invalid != [] do
-      Mix.raise("unsupported options. Usage: mix angelus.kernels [--force]")
+      Mix.raise("unsupported options. Usage: mix angelus.prepare [--force]")
     end
 
     force? = Keyword.get(opts, :force, false)
@@ -373,5 +375,5 @@ defmodule Mix.Tasks.Angelus.Kernels do
     end
   end
 
-  @shortdoc "Downloads Angelus v0.1 kernels"
+  @shortdoc "Prepares Angelus runtime kernels"
 end

@@ -11,11 +11,6 @@ defmodule Angelus.Astro.Adapter do
 
   @type opt :: term()
 
-  @callback prepare_adapter([opt()]) :: {:ok, module()} | {:error, term()}
-
   @callback get_position(DateTime.t(), atom()) ::
-              {:ok, Body.t() | Point.t()} | {:error, term()}
-
-  @callback get_position(DateTime.t(), atom(), Angelus.Astro.location()) ::
               {:ok, Body.t() | Point.t()} | {:error, term()}
 end

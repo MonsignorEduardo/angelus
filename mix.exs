@@ -2,7 +2,7 @@ defmodule Angelus.MixProject do
   use Mix.Project
 
   @app :angelus
-  @version "0.0.2"
+  @version "1.0.0"
   @source_url "https://github.com/MonsignorEduardo/angelus"
   @priv_paths ["angelus_worker"]
 
@@ -10,7 +10,7 @@ defmodule Angelus.MixProject do
     [
       app: @app,
       version: @version,
-      elixir: "~> 1.19",
+      elixir: "~> 1.20.2",
       start_permanent: Mix.env() == :prod,
       compilers: [:elixir_make] ++ Mix.compilers(),
       aliases: aliases(),
@@ -47,7 +47,6 @@ defmodule Angelus.MixProject do
       {:elixir_make, "~> 0.9", runtime: false},
       {:ex_doc, "~> 0.40.3", only: :dev, runtime: false, warn_if_outdated: true},
       {:jason, "~> 1.4"},
-      {:mox, "~> 1.2", only: :test},
       {:owl, "~> 0.13"},
       {:req, "~> 0.5"}
     ]

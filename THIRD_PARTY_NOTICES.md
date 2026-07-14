@@ -8,7 +8,10 @@ Angelus native artefacts may include components from the NAIF SPICE Toolkit for 
 
 ## JPL/NAIF Kernels
 
-Angelus does not bundle kernel data. Users install the full kernel set with `mix angelus.kernels`; the task downloads generic JPL/NAIF kernels and pinned minor-planet SPKs generated through the JPL Horizons API. Pinned SPKs are verified against catalogued SHA-256 checksums. All kernel files remain subject to their respective terms.
+Angelus does not bundle runtime data. `mix angelus.prepare` downloads the required
+JPL/NAIF kernels and the pinned Quirón SPK. The pinned SPK is verified against
+its catalogued SHA-256 checksum. All kernel files remain subject to their
+respective terms.
 
 ## Build Tooling
 

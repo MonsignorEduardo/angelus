@@ -2,8 +2,9 @@
 
 ## Project Shape
 
-- Angelus is an Elixir `~> 1.19` library backed by a native C `angelus_worker` port for NAIF CSPICE/JPL ephemerides.
-- Public API starts in `lib/angelus.ex`; validation/result shaping are in `lib/angelus/astro.ex`; kernel loading and port ownership are in `lib/angelus/motor.ex` and `lib/angelus/motor/server.ex`.
+- Angelus 1.0.0 is an Elixir `~> 1.20.2` library backed by a native C `angelus_worker` port for NAIF CSPICE/JPL ephemerides.
+- The sole public API is `Angelus.get_ephemeride/1` in `lib/angelus.ex`; its result model is `lib/angelus/ephemeride.ex`. Internal SPICE access is in `lib/angelus/astro.ex`, `lib/angelus/motor.ex`, and `lib/angelus/motor/server.ex`.
+- Results are geocentric and scientific: ecliptic latitude (`lat`), true-equatorial declination (`decl`), and observed motion. Do not reintroduce zodiac signs or formatted ecliptic longitudes.
 - `mix compile` drives the native build through `elixir_make` -> `native/Makefile` -> `native/meson.build`; do not run `make` or `meson` directly unless debugging that layer.
 - The worker protocol is JSON over an Erlang port opened with `{:packet, 4}`; Elixir encoding/decoding lives in `Angelus.Motor.WorkerProtocol`, native request/response handling in `native/src/io/*`.
 - `docs/BUILDING.md` has stale native target/path details; prefer `mix.exs`, `justfile`, `native/meson.build`, and CI workflows when they disagree.
@@ -24,19 +25,18 @@
 
 - Source builds need a C compiler, Meson, Ninja, `curl`, `jq`, and system `libcjson`/`cjson` headers; CI installs `build-essential curl jq meson ninja-build libcjson-dev`.
 - Meson fetches CSPICE and ERFA through `native/subprojects/*.wrap`; the worker installs to the compiled app's `priv/angelus_worker` via `MIX_APP_PATH`.
-- Kernel files are not bundled in Hex packages; `mix angelus.kernels` downloads generic kernels and pinned minor-planet SPKs generated through JPL Horizons, then verifies their SHA-256 checksums.
-- Kernel files land in `priv/kernels/`, but runtime code must still call `Angelus.load_kernels/0` or `Angelus.load_kernels/1`; kernels are never loaded implicitly.
+- Runtime resources are not bundled in Hex packages; `mix angelus.prepare` downloads the required generic kernels and the pinned Quirón SPK, then verifies its SHA-256 checksum.
+- Kernel files land in `priv/kernels/`; `Angelus.get_ephemeride/1` loads them internally.
 
 ## Tests And Fixtures
 
 - `test/test_helper.exs` excludes `:e2e` by default, so plain `mix test` will skip e2e tests.
-- Unit tests should avoid real CSPICE by using `adapter: Angelus.Astro.AdapterMock`; the Mox mock is defined in `test/support/mocks.ex`.
-- E2E tests require the compiled real worker, downloaded kernels, and `test/support/fixtures/horizons/de442_positions.json` containing real JPL Horizons data.
-- Do not hand-write or placeholder Horizons positions; `test/support/fixtures/horizons/README.md` explicitly forbids fake fixture values.
+- Unit tests exercise the ephemeris result model without CSPICE.
+- E2E tests require the compiled real worker and downloaded kernels; use `mix test test/e2e --include e2e`.
 
 ## Release Notes
 
-- Release tags are `v*`; `.github/workflows/release.yml` rejects a tag if `mix.exs` `@version` does not equal the tag without the leading `v`.
+- Release tags are `v*`; `.github/workflows/release.yml` rejects a tag if `mix.exs` `@version` does not equal the tag without the leading `v`. The retained runtime-kernel release is `kernels-v0.2` because it hosts the pinned Quirón SPK.
 - Precompiled workers are configured in `mix.exs` via `cc_precompiler`; current listed targets are `aarch64-apple-darwin`, `x86_64-linux-gnu`, and `aarch64-linux-gnu`.
 
 ## Agent Skills

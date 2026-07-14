@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "212884f131a5bd5942632f5ac038addd82fc50e8",
-    "indexed_at": "2026-07-11T19:11:09Z",
+    "commit": "d0c34d84c3d9b39432b6abeb0720178ab0804efb",
+    "indexed_at": "2026-07-14T21:34:17Z",
     "project": "angelus",
-    "nodes": 475,
-    "edges": 867,
+    "nodes": 450,
+    "edges": 812,
     "original_size": 2490368,
-    "compressed_size": 309385,
+    "compressed_size": 319018,
     "compression_level": 3
 }

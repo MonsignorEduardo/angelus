@@ -29,15 +29,6 @@ static int parse_request_string(cJSON *root, const char *key,
   return 0;
 }
 
-static int parse_request_number(cJSON *root, const char *key, double *value) {
-  cJSON *item = cJSON_GetObjectItemCaseSensitive(root, key);
-  if (!cJSON_IsNumber(item) || !isfinite(item->valuedouble))
-    return -1;
-
-  *value = item->valuedouble;
-  return 0;
-}
-
 static ActionName action_name(const char *op) {
   if (strcmp(op, "ping") == 0)
     return ACTION_PING;
@@ -47,8 +38,6 @@ static ActionName action_name(const char *op) {
     return ACTION_LOAD_KERNELS;
   if (strcmp(op, "body") == 0)
     return ACTION_BODY;
-  if (strcmp(op, "topocentric_body") == 0)
-    return ACTION_TOPOCENTRIC_BODY;
   if (strcmp(op, "math_point") == 0)
     return ACTION_MATH_POINT;
   return ACTION_UNKNOWN;
@@ -116,20 +105,6 @@ ParsedAction parse_packet(const char *json) {
       action.error = "invalid body arguments";
     }
     break;
-  case ACTION_TOPOCENTRIC_BODY: {
-    TopocentricBodyArgs *args = &action.args.topocentric_body;
-    if (parse_request_string(root, "target", &args->target) != 0 ||
-        parse_request_string(root, "utc", &args->utc) != 0 ||
-        parse_request_number(root, "latitude_degrees", &args->latitude_degrees) != 0 ||
-        parse_request_number(root, "longitude_degrees", &args->longitude_degrees) != 0 ||
-        parse_request_number(root, "ellipsoidal_height_m", &args->ellipsoidal_height_m) != 0 ||
-        args->latitude_degrees < -90.0 || args->latitude_degrees > 90.0 ||
-        args->longitude_degrees < -180.0 || args->longitude_degrees > 180.0) {
-      action.name = ACTION_INVALID;
-      action.error = "invalid topocentric_body arguments";
-    }
-    break;
-  }
   case ACTION_MATH_POINT:
     if (parse_request_string(root, "point", &action.args.math_point.point) != 0 ||
         parse_request_string(root, "utc", &action.args.math_point.utc) != 0) {

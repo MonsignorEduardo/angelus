@@ -43,13 +43,17 @@ typedef struct {
   double state_km[6];
   double light_time_seconds;
   double et_seconds;
-
+  double longitude_rad;
+  double latitude_rad;
+  double declination_rad;
   AngelusReferenceFrame frame;
+  AngelusReferenceFrame coordinate_frame;
   AngelusAberrationCorrection abcorr;
 } AngelusBodyState;
 
 typedef struct {
   double longitude_rad;
+  double declination_rad;
   double speed_rad_day;
   double et_seconds;
 } AngelusPointState;

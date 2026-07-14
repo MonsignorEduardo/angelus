@@ -1,8 +1,7 @@
 defmodule Angelus.Astro do
-  @moduledoc "Public v0.1 API for astronomical body states and mathematical points."
+  @moduledoc false
 
   alias Angelus.Astro.Body
-  alias Angelus.Astro.Location
   alias Angelus.Astro.Point
 
   @range_from ~D[1900-01-01]
@@ -12,11 +11,6 @@ defmodule Angelus.Astro do
   Ephemeris adapter module implementing position callbacks.
   """
   @type adapter :: module()
-
-  @typedoc """
-  Validated topocentric observer location.
-  """
-  @type location :: Location.t()
 
   @doc """
   Returns geocentric positions for a list of celestial bodies at a UTC datetime.
@@ -40,12 +34,6 @@ defmodule Angelus.Astro do
       supported range.
     * `{:error, {:invalid_adapter, term()}}` for invalid adapters.
 
-  ## Examples
-
-      iex> {:ok, adapter} = Angelus.load_kernels()
-      iex> {:ok, positions} = Angelus.Astro.get_positions([:sun, :moon], ~U[2000-01-01 12:00:00Z], adapter)
-      iex> Map.keys(positions)
-      [:sun, :moon]
   """
   @spec get_positions([atom(), ...], DateTime.t(), adapter()) ::
           {:ok, %{atom() => Body.t() | Point.t()}} | {:error, term()}
@@ -59,37 +47,9 @@ defmodule Angelus.Astro do
     end
   end
 
-  @doc """
-  Returns topocentric positions for a list of celestial bodies at a UTC datetime.
-
-  `location` contains geodetic latitude/longitude and elevation above mean sea
-  level. Build it with `Angelus.Astro.Location.new/1`.
-  """
-  @spec get_positions([atom(), ...], DateTime.t(), location(), adapter()) ::
-          {:ok, %{atom() => Body.t() | Point.t()}} | {:error, term()}
-  def get_positions(bodies, datetime, location, adapter) do
-    with {:ok, adapter} <- validate_adapter(adapter, 3),
-         :ok <- validate_datetime(datetime),
-         :ok <- validate_body_list_shape(bodies),
-         :ok <- validate_duplicates(bodies),
-         :ok <- validate_public_range(datetime),
-         {:ok, location} <- Location.validate(location) do
-      build_positions(bodies, datetime, location, adapter)
-    end
-  end
-
   defp build_positions(bodies, datetime, adapter) do
     Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
       case adapter.get_position(datetime, body) do
-        {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-  end
-
-  defp build_positions(bodies, datetime, location, adapter) do
-    Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
-      case adapter.get_position(datetime, body, location) do
         {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end

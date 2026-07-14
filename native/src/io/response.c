@@ -63,9 +63,14 @@ int send_ok_body(int id, const AngelusBodyState *state) {
   }
 
   if (!isfinite(state->light_time_seconds) || !isfinite(state->et_seconds) ||
+       !isfinite(state->longitude_rad) || !isfinite(state->latitude_rad) ||
+       !isfinite(state->declination_rad) ||
       !cJSON_AddNumberToObject(result, "light_time_seconds",
-                               state->light_time_seconds) ||
-      !cJSON_AddNumberToObject(result, "et_seconds", state->et_seconds))
+                                state->light_time_seconds) ||
+       !cJSON_AddNumberToObject(result, "et_seconds", state->et_seconds) ||
+       !cJSON_AddNumberToObject(result, "longitude_rad", state->longitude_rad) ||
+       !cJSON_AddNumberToObject(result, "latitude_rad", state->latitude_rad) ||
+       !cJSON_AddNumberToObject(result, "declination_rad", state->declination_rad))
     goto fail;
 
   return send_json(root);
@@ -78,13 +83,15 @@ fail:
 int send_ok_point(int id, const AngelusPointState *state) {
   cJSON *root = cJSON_CreateObject();
   if (!root || !state || !isfinite(state->longitude_rad) ||
-      !isfinite(state->speed_rad_day) || !isfinite(state->et_seconds))
+       !isfinite(state->declination_rad) || !isfinite(state->speed_rad_day) ||
+       !isfinite(state->et_seconds))
     goto fail;
 
   cJSON *result = cJSON_AddObjectToObject(root, "result");
   if (!result || !cJSON_AddNumberToObject(root, "id", id) ||
-      !cJSON_AddTrueToObject(root, "ok") ||
-      !cJSON_AddNumberToObject(result, "longitude_rad", state->longitude_rad) ||
+       !cJSON_AddTrueToObject(root, "ok") ||
+       !cJSON_AddNumberToObject(result, "longitude_rad", state->longitude_rad) ||
+       !cJSON_AddNumberToObject(result, "declination_rad", state->declination_rad) ||
       !cJSON_AddNumberToObject(result, "speed_rad_day", state->speed_rad_day) ||
       !cJSON_AddNumberToObject(result, "et_seconds", state->et_seconds))
     goto fail;

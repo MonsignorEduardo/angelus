@@ -40,6 +40,7 @@ cjson_dep = dependency('libcjson')
 sources = files(
     'src/astro/cspice_ops.c',
     'src/astro/erfa_ops.c',
+    'src/astro/frames.c',
     'src/astro/time.c',
     'src/io/packet.c',
     'src/io/request.c',

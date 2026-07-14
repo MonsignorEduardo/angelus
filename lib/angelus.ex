@@ -1,113 +1,51 @@
 defmodule Angelus do
   @moduledoc """
-  High-level geocentric ephemeris API backed by SPICE/JPL.
+  Geocentric tropical ephemerides backed by SPICE/JPL.
 
-  ## Quick start
-
-      # 1. Download kernels (once)
-      mix angelus.kernels
-
-      # 2. Load kernels at runtime
-      {:ok, adapter} = Angelus.load_kernels()
-
-      # 3. Query positions
-      {:ok, positions} = Angelus.get_positions(
-        [:sun, :moon, :mercury, :venus, :mars,
-         :jupiter, :saturn, :uranus, :neptune, :pluto,
-         :true_node, :lilith, :chiron, :ceres, :pallas,
-         :juno, :vesta, :eris],
-        ~U[1990-05-24 06:30:00Z],
-        adapter
-      )
-
-  See `Angelus.Astro` and `Angelus.Motor` for the full API.
+      {:ok, ephemeride} = Angelus.get_ephemeride(~U[1998-01-01 00:00:00Z])
   """
-
-  alias Angelus.Astro.Adapters.Spice
-
-  @version Mix.Project.config()[:version]
-
-  @doc "Returns the Angelus library version."
-  @spec version() :: String.t()
-  def version, do: @version
-
-  # ── Re-exported API ──────────────────────────────────────────────────────
 
   @doc """
-  Returns the geocentric position of a single body at the given UTC datetime.
+  Returns the fixed 14-body geocentric tropical ephemeris for `datetime`.
 
-  This is a convenience wrapper around `get_positions/3`.
+  The supplied instant is normalized to UTC. A `NaiveDateTime` is rejected,
+  because it has no offset from which UTC can be determined. Kernel loading is
+  managed internally; run `mix angelus.prepare` once to install runtime data.
   """
-  @spec get_position(atom(), DateTime.t(), Angelus.Astro.adapter()) ::
-          {:ok, Angelus.Astro.Body.t() | Angelus.Astro.Point.t()} | {:error, term()}
-  def get_position(body, datetime, adapter)
+  @spec get_ephemeride(DateTime.t()) :: {:ok, Angelus.Ephemeride.t()} | {:error, term()}
+  def get_ephemeride(%DateTime{} = datetime) do
+    utc = DateTime.from_unix!(DateTime.to_unix(datetime, :microsecond), :microsecond)
+    previous_utc = DateTime.add(utc, -86_400, :second)
 
-  def get_position(body, datetime, adapter) when is_atom(body) do
-    with {:ok, positions} <- get_positions([body], datetime, adapter) do
-      {:ok, Map.fetch!(positions, body)}
+    with :ok <- ensure_kernels_loaded(),
+         {:ok, positions} <-
+           Angelus.Astro.get_positions(source_bodies(), utc, Angelus.Astro.Adapters.Spice),
+         {:ok, previous_positions} <-
+           Angelus.Astro.get_positions(
+             source_bodies(),
+             previous_utc,
+             Angelus.Astro.Adapters.Spice
+           ) do
+      {:ok, Angelus.Ephemeride.from_positions(utc, positions, previous_positions)}
     end
   end
 
-  def get_position(_body, _datetime, _adapter), do: {:error, :invalid_body}
+  def get_ephemeride(_datetime), do: {:error, :datetime_must_include_offset}
 
-  @doc "Returns one topocentric body position for a validated Earth location."
-  @spec get_position(
-          atom(),
-          DateTime.t(),
-          Angelus.Astro.location(),
-          Angelus.Astro.adapter()
-        ) :: {:ok, Angelus.Astro.Body.t() | Angelus.Astro.Point.t()} | {:error, term()}
-  def get_position(body, datetime, location, adapter) when is_atom(body) do
-    with {:ok, positions} <- get_positions([body], datetime, location, adapter) do
-      {:ok, Map.fetch!(positions, body)}
-    end
+  defp source_bodies do
+    Angelus.Ephemeride.bodies()
+    |> List.delete(:south_node)
+    |> Enum.map(fn
+      :north_node -> :true_node
+      body -> body
+    end)
   end
 
-  def get_position(_body, _datetime, _location, _adapter), do: {:error, :invalid_body}
-
-  @doc """
-  Returns the geocentric positions of a list of bodies at the given UTC datetime.
-
-  Delegates to `Angelus.Astro.get_positions/3`.
-  """
-  @spec get_positions([atom(), ...], DateTime.t(), Angelus.Astro.adapter()) ::
-          {:ok, %{atom() => Angelus.Astro.Body.t() | Angelus.Astro.Point.t()}}
-          | {:error, term()}
-  defdelegate get_positions(bodies, datetime, adapter), to: Angelus.Astro
-
-  @doc """
-  Returns topocentric positions for a list of bodies at the given UTC datetime.
-
-  `location` must be a validated `Angelus.Astro.Location`.
-
-  Delegates to `Angelus.Astro.get_positions/4`.
-  """
-  @spec get_positions(
-          [atom(), ...],
-          DateTime.t(),
-          Angelus.Astro.location(),
-          Angelus.Astro.adapter()
-        ) ::
-          {:ok, %{atom() => Angelus.Astro.Body.t() | Angelus.Astro.Point.t()}}
-          | {:error, term()}
-  defdelegate get_positions(bodies, datetime, location, adapter), to: Angelus.Astro
-
-  @doc """
-  Loads the default v0.1 SPICE kernel set from `priv/kernels/` and returns
-  the prepared SPICE Astro adapter.
-
-  Use `Angelus.Motor.load_kernels/0` directly when kernel metadata is needed.
-  """
-  @spec load_kernels() :: {:ok, Angelus.Astro.adapter()} | {:error, term()}
-  def load_kernels, do: Spice.prepare_adapter()
-
-  @doc """
-  Loads SPICE kernels with options or explicit paths and returns the prepared
-  SPICE Astro adapter.
-
-  Use `Angelus.Motor.load_kernels/1` directly when kernel metadata is needed.
-  """
-  @spec load_kernels([Angelus.Motor.load_kernel_option()] | [String.t()]) ::
-          {:ok, Angelus.Astro.adapter()} | {:error, term()}
-  def load_kernels(paths_or_opts), do: Spice.prepare_adapter(paths_or_opts)
+  defp ensure_kernels_loaded do
+    case Angelus.Motor.load_kernels() do
+      {:ok, _metadata} -> :ok
+      {:error, :kernels_already_loaded} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
 end

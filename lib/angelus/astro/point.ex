@@ -4,6 +4,8 @@ defmodule Angelus.Astro.Point do
   defstruct [
     :point,
     :longitude_rad,
+    :declination,
+    :declination_rad,
     :speed_rad_day,
     :et_seconds,
     :metadata
@@ -15,7 +17,8 @@ defmodule Angelus.Astro.Point do
   Fields:
 
   * `:point` - the point atom (e.g. `:true_node`, `:lilith`).
-  * `:longitude_rad` - ecliptic longitude in radians.
+   * `:longitude_rad` - ecliptic longitude in radians.
+   * `:declination` and `:declination_rad` - true-equatorial declination of date.
   * `:speed_rad_day` - longitude speed in radians per day.
   * `:et_seconds` - ephemeris time / TDB seconds past J2000.
   * `:metadata` - internal metadata map (engine, kernels, source point, etc.).
@@ -23,6 +26,8 @@ defmodule Angelus.Astro.Point do
   @type t() :: %__MODULE__{
           point: atom(),
           longitude_rad: float() | nil,
+          declination: float() | nil,
+          declination_rad: float() | nil,
           speed_rad_day: float() | nil,
           et_seconds: float() | nil,
           metadata: map() | nil

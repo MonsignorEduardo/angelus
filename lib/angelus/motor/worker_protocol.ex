@@ -54,21 +54,6 @@ defmodule Angelus.Motor.WorkerProtocol do
     })
   end
 
-  @doc "Encodes a body request for an Earth-fixed topocentric observer."
-  @spec encode_topocentric_body(request_id(), String.t(), String.t(), map()) :: binary()
-  def encode_topocentric_body(id, spice_target, iso8601, observer)
-      when is_binary(spice_target) and is_binary(iso8601) and is_map(observer) do
-    Jason.encode!(%{
-      "id" => id,
-      "op" => "topocentric_body",
-      "target" => spice_target,
-      "utc" => iso8601,
-      "latitude_degrees" => observer.latitude,
-      "longitude_degrees" => observer.longitude,
-      "ellipsoidal_height_m" => observer.ellipsoidal_height_m
-    })
-  end
-
   @doc "Encodes a mathematical point request."
   @spec encode_math_point(request_id(), String.t(), String.t()) :: binary()
   def encode_math_point(id, point, iso8601) when is_binary(point) and is_binary(iso8601) do
@@ -124,19 +109,43 @@ defmodule Angelus.Motor.WorkerProtocol do
   def coerce_body(%{
         "state_km" => [x, y, z, vx, vy, vz],
         "light_time_seconds" => light_time_seconds,
-        "et_seconds" => et_seconds
-      })
-      when is_number(x) and is_number(y) and is_number(z) and is_number(vx) and
-             is_number(vy) and is_number(vz) and is_number(light_time_seconds) and
-             is_number(et_seconds) do
-    {:ok,
-     %{
-       position_km: {x * 1.0, y * 1.0, z * 1.0},
-       velocity_km_s: {vx * 1.0, vy * 1.0, vz * 1.0},
-       distance_au: distance_au(x, y, z),
-       light_time_seconds: light_time_seconds * 1.0,
-       et_seconds: et_seconds * 1.0
-     }}
+        "et_seconds" => et_seconds,
+        "longitude_rad" => longitude_rad,
+        "latitude_rad" => latitude_rad,
+        "declination_rad" => declination_rad
+      }) do
+    values = [
+      x,
+      y,
+      z,
+      vx,
+      vy,
+      vz,
+      light_time_seconds,
+      et_seconds,
+      longitude_rad,
+      latitude_rad,
+      declination_rad
+    ]
+
+    if Enum.all?(values, &is_number/1) do
+      {:ok,
+       %{
+         position_km: {x * 1.0, y * 1.0, z * 1.0},
+         velocity_km_s: {vx * 1.0, vy * 1.0, vz * 1.0},
+         distance_au: distance_au(x, y, z),
+         light_time_seconds: light_time_seconds * 1.0,
+         et_seconds: et_seconds * 1.0,
+         longitude_rad: longitude_rad * 1.0,
+         latitude_rad: latitude_rad * 1.0,
+         longitude: longitude_rad * 180.0 / :math.pi(),
+         latitude: latitude_rad * 180.0 / :math.pi(),
+         declination_rad: declination_rad * 1.0,
+         declination: declination_rad * 180.0 / :math.pi()
+       }}
+    else
+      {:error, :invalid_body_result}
+    end
   end
 
   def coerce_body(_), do: {:error, :invalid_body_result}
@@ -146,13 +155,17 @@ defmodule Angelus.Motor.WorkerProtocol do
   @spec coerce_point(term()) :: {:error, :invalid_point_result}
   def coerce_point(%{
         "longitude_rad" => longitude_rad,
+        "declination_rad" => declination_rad,
         "speed_rad_day" => speed_rad_day,
         "et_seconds" => et_seconds
       })
-      when is_number(longitude_rad) and is_number(speed_rad_day) and is_number(et_seconds) do
+      when is_number(longitude_rad) and is_number(declination_rad) and
+             is_number(speed_rad_day) and is_number(et_seconds) do
     {:ok,
      %{
        longitude_rad: longitude_rad * 1.0,
+       declination_rad: declination_rad * 1.0,
+       declination: declination_rad * 180.0 / :math.pi(),
        speed_rad_day: speed_rad_day * 1.0,
        et_seconds: et_seconds * 1.0
      }}

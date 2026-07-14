@@ -16,8 +16,8 @@ permissions:
 
 env:
   MIX_ENV: test
-  ELIXIR_VERSION: "1.19"
-  OTP_VERSION: "27"
+  ELIXIR_VERSION: "1.20.2"
+  OTP_VERSION: "29.0.3"
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
@@ -124,21 +124,12 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: priv/kernels
-          key: kernels-v0.1-${{ hashFiles('lib/angelus/astro/catalog.ex') }}
+          key: kernels-v0.2-${{ hashFiles('lib/angelus/astro/catalog.ex') }}
 
       - name: Download and validate kernels
-        run: mix angelus.kernels
+        run: mix angelus.prepare
 
-      - name: Cache EGM2008 geoid
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: priv/geoid
-          key: egm2008-2-5-${{ hashFiles('lib/mix/tasks/geoid.ex') }}
-
-      - name: Download and validate EGM2008
-        run: mix angelus.geoid
-
-      - name: E2E tests (CSPICE + Horizons)
+      - name: E2E tests (CSPICE)
         run: mix test test/e2e --include e2e
 
   leak-check:

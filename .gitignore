@@ -22,7 +22,6 @@
 
 # Runtime JPL/NAIF kernels are downloaded explicitly and are not source assets.
 /priv/kernels/
-/priv/geoid/
 
 # Native build scratch and compiled artefacts.
 /priv/angelus_spice.so
