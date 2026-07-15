@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag to build and publish, for example v0.1.0"
+        description: "Release tag to create and publish, for example v0.1.0"
         required: true
         type: string
 
@@ -22,23 +22,25 @@ env:
 
 jobs:
   validate-release-ref:
-    name: Validate release ref
+    name: Create release tag
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
 
     steps:
-      - name: Verify release tag exists
+      - name: Create release tag when absent
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh api "repos/${{ github.repository }}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Reusing existing tag '${RELEASE_TAG}'."
             exit 0
           fi
 
-          echo "::error title=Release tag not found::Tag '${RELEASE_TAG}' does not exist on origin. Create and push it before running this workflow."
-          echo "Example: git tag ${RELEASE_TAG} && git push origin ${RELEASE_TAG}"
-          exit 1
+          gh api --method POST "repos/${{ github.repository }}/git/refs" \
+            -f "ref=refs/tags/${RELEASE_TAG}" \
+            -f "sha=${GITHUB_SHA}"
+          echo "Created tag '${RELEASE_TAG}' at ${GITHUB_SHA}."
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -354,6 +356,8 @@ jobs:
       contents: read
     env:
       MIX_ENV: dev
+      # Draft-release assets are not yet available at the versioned download URL.
+      ANGELUS_FORCE_BUILD: "1"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -365,6 +369,13 @@ jobs:
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip
+          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Get deps
         run: mix deps.get
