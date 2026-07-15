@@ -345,7 +345,9 @@ jobs:
     needs: checksum
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      # The checksum is attached to a draft release and draft assets require
+      # write access to be visible to the workflow token.
+      contents: write
     env:
       MIX_ENV: dev
 
