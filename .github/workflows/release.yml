@@ -339,15 +339,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: checksum
+          path: checksum.exs
+          if-no-files-found: error
+
   # ── Publish to Hex.pm ────────────────────────────────────────────────────
   publish:
     name: Publish to Hex.pm
     needs: checksum
     runs-on: ubuntu-24.04
     permissions:
-      # The checksum is attached to a draft release and draft assets require
-      # write access to be visible to the workflow token.
-      contents: write
+      contents: read
     env:
       MIX_ENV: dev
 
@@ -365,13 +369,10 @@ jobs:
       - name: Get deps
         run: mix deps.get
 
-      - name: Download checksum file
-        run: |
-          ASSET_ID=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | select(.name == "checksum.exs") | .id')
-          gh api "repos/${{ github.repository }}/releases/assets/${ASSET_ID}" \
-            -H "Accept: application/octet-stream" > checksum.exs
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: checksum
+          path: .
 
       - name: Publish to Hex.pm
         run: mix hex.publish --yes
