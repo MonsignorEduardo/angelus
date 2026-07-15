@@ -365,9 +365,9 @@ jobs:
 
       - name: Download checksum file
         run: |
-          gh release download "$RELEASE_TAG" \
-            --pattern "checksum.exs" \
-            --output checksum.exs
+          ASSET_ID=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | select(.name == "checksum.exs") | .id')
+          gh api "repos/${{ github.repository }}/releases/assets/${ASSET_ID}" \
+            -H "Accept: application/octet-stream" > checksum.exs
         env:
           GH_TOKEN: ${{ github.token }}
 
