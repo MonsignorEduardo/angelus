@@ -8,6 +8,11 @@ on:
         description: "Git ref to validate"
         required: false
         type: string
+      release_validation:
+        description: "Run E2E and Valgrind checks for a release"
+        required: false
+        default: false
+        type: boolean
 
 env:
   ELIXIR_VERSION: "1.20.2"
@@ -58,6 +63,10 @@ jobs:
           python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Install Valgrind
+        if: inputs.release_validation
+        run: sudo apt-get install -y valgrind
+
       - name: Cache deps
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -105,3 +114,17 @@ jobs:
 
       - name: Smoke test Hex package source build
         run: sh scripts/hex_package_smoke.sh
+
+      - name: Download and validate kernels
+        if: inputs.release_validation
+        run: mix angelus.prepare
+
+      - name: E2E tests (CSPICE)
+        if: inputs.release_validation
+        run: mix test test/e2e --include e2e
+
+      - name: Run Valgrind leak check
+        if: inputs.release_validation
+        env:
+          ANGELUS_WORKER: ${{ github.workspace }}/_build/test/lib/angelus/priv/angelus_worker
+        run: elixir scripts/native_leak_check.exs

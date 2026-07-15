@@ -21,30 +21,17 @@ env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
-  validate-release-ref:
+  create-release-tag:
     name: Create release tag
+    needs: ci
     runs-on: ubuntu-24.04
     permissions:
       contents: write
 
     steps:
-      - name: Create release tag when absent
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh api "repos/${{ github.repository }}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Reusing existing tag '${RELEASE_TAG}'."
-            exit 0
-          fi
-
-          gh api --method POST "repos/${{ github.repository }}/git/refs" \
-            -f "ref=refs/tags/${RELEASE_TAG}" \
-            -f "sha=${GITHUB_SHA}"
-          echo "Created tag '${RELEASE_TAG}' at ${GITHUB_SHA}."
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Verify mix.exs version matches release tag
@@ -59,9 +46,23 @@ jobs:
 
           echo "Version check passed: mix.exs version '${MIX_VERSION}' matches tag '${RELEASE_TAG}'."
 
+      - name: Create release tag when absent
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Reusing existing tag '${RELEASE_TAG}'."
+            exit 0
+          fi
+
+          gh api --method POST "repos/${{ github.repository }}/git/refs" \
+            -f "ref=refs/tags/${RELEASE_TAG}" \
+            -f "sha=${GITHUB_SHA}"
+          echo "Created tag '${RELEASE_TAG}' at ${GITHUB_SHA}."
+
   create-draft-release:
     name: Create draft release
-    needs: validate-release-ref
+    needs: create-release-tag
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -89,89 +90,15 @@ jobs:
 
   ci:
     name: CI
-    needs: validate-release-ref
     uses: ./.github/workflows/ci.yml
     with:
-      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-
-  e2e-tests:
-    name: E2E tests
-    needs: validate-release-ref
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    env:
-      ANGELUS_FORCE_BUILD: "1"
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-          persist-credentials: false
-
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
-        with:
-          otp-version: ${{ env.OTP_VERSION }}
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip
-          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Get deps
-        run: mix deps.get
-
-      - name: Download and validate kernels
-        run: mix angelus.prepare
-
-      - name: E2E tests (CSPICE)
-        run: mix test test/e2e --include e2e
-
-  leak-check:
-    name: Valgrind leak check
-    needs: validate-release-ref
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    env:
-      ANGELUS_FORCE_BUILD: "1"
-      ANGELUS_WORKER: ${{ github.workspace }}/_build/test/lib/angelus/priv/angelus_worker
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-          persist-credentials: false
-
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
-        with:
-          otp-version: ${{ env.OTP_VERSION }}
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-
-      - name: Install build and leak-check dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip valgrind
-          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Get deps
-        run: mix deps.get
-
-      - name: Compile native worker
-        run: mix compile
-
-      - name: Run Valgrind leak check
-        run: |
-          elixir scripts/native_leak_check.exs
+      ref: ${{ github.sha }}
+      release_validation: true
 
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
-    needs: [create-draft-release, e2e-tests, ci, leak-check]
+    needs: create-draft-release
     runs-on: macos-14
     permissions:
       contents: write
@@ -214,7 +141,7 @@ jobs:
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
-    needs: [create-draft-release, e2e-tests, ci, leak-check]
+    needs: create-draft-release
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -261,7 +188,7 @@ jobs:
   # ── Linux (aarch64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux-arm64:
     name: Precompile / aarch64-linux-gnu
-    needs: [create-draft-release, e2e-tests, ci, leak-check]
+    needs: create-draft-release
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
