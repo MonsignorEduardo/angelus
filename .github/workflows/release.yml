@@ -21,17 +21,47 @@ env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
-  create-release-tag:
-    name: Create release tag
-    needs: ci
+  zizmor:
+    name: zizmor
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Audit GitHub Actions workflows
+        uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
+        with:
+          advanced-security: false
+          inputs: .github/workflows
+
+  prepare-release:
+    name: Prepare release
+    needs: zizmor
+    runs-on: ubuntu-24.04
+    outputs:
+      target-sha: ${{ steps.target.outputs.sha }}
+
+    steps:
+      - name: Resolve release commit
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if TARGET_SHA=$(gh api "repos/${{ github.repository }}/commits/${RELEASE_TAG}" --jq .sha 2>/dev/null); then
+            echo "Rebuilding existing tag '${RELEASE_TAG}' at ${TARGET_SHA}."
+          else
+            TARGET_SHA="$GITHUB_SHA"
+            echo "New tag '${RELEASE_TAG}' will target ${TARGET_SHA}."
+          fi
+
+          echo "sha=${TARGET_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.target.outputs.sha }}
           persist-credentials: false
 
       - name: Verify mix.exs version matches release tag
@@ -46,19 +76,33 @@ jobs:
 
           echo "Version check passed: mix.exs version '${MIX_VERSION}' matches tag '${RELEASE_TAG}'."
 
+  create-release-tag:
+    name: Create release tag
+    needs: [prepare-release, validation, precompile-macos, precompile-linux-arm64]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
       - name: Create release tag when absent
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ needs.prepare-release.outputs.target-sha }}
         run: |
-          if gh api "repos/${{ github.repository }}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+          if EXISTING_SHA=$(gh api "repos/${{ github.repository }}/commits/${RELEASE_TAG}" --jq .sha 2>/dev/null); then
+            if [ "$EXISTING_SHA" != "$TARGET_SHA" ]; then
+              echo "::error title=Tag moved::Tag '${RELEASE_TAG}' now targets ${EXISTING_SHA}, expected ${TARGET_SHA}."
+              exit 1
+            fi
+
             echo "Reusing existing tag '${RELEASE_TAG}'."
             exit 0
           fi
 
           gh api --method POST "repos/${{ github.repository }}/git/refs" \
             -f "ref=refs/tags/${RELEASE_TAG}" \
-            -f "sha=${GITHUB_SHA}"
-          echo "Created tag '${RELEASE_TAG}' at ${GITHUB_SHA}."
+            -f "sha=${TARGET_SHA}"
+          echo "Created tag '${RELEASE_TAG}' at ${TARGET_SHA}."
 
   create-draft-release:
     name: Create draft release
@@ -88,27 +132,20 @@ jobs:
               --title "$RELEASE_TAG"
           fi
 
-  ci:
-    name: CI
-    uses: ./.github/workflows/ci.yml
-    with:
-      ref: ${{ github.sha }}
-      release_validation: true
-
   # ── macOS (aarch64-apple-darwin) ─────────────────────────────────────────
   precompile-macos:
     name: Precompile / aarch64-apple-darwin
-    needs: create-draft-release
+    needs: prepare-release
     runs-on: macos-14
     permissions:
-      contents: write
+      contents: read
     env:
       MIX_ENV: prod
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare-release.outputs.target-sha }}
           persist-credentials: false
 
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
@@ -133,25 +170,34 @@ jobs:
           mkdir -p _build/precompiled
           mix elixir_make.precompile
 
-      - name: Upload artefacts
-        run: gh release upload "$RELEASE_TAG" _build/precompiled/*.tar.gz --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Store precompiled artefact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: precompile-aarch64-apple-darwin
+          path: _build/precompiled/*.tar.gz
+          if-no-files-found: error
+
+      - name: Store target checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: precompile-aarch64-apple-darwin-checksum
+          path: checksum.exs
+          if-no-files-found: error
 
   # ── Linux (x86_64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux:
     name: Precompile / x86_64-linux-gnu
-    needs: create-draft-release
+    needs: prepare-release
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     env:
       MIX_ENV: prod
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare-release.outputs.target-sha }}
           persist-credentials: false
 
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
@@ -180,18 +226,27 @@ jobs:
           mkdir -p _build/precompiled
           mix elixir_make.precompile
 
-      - name: Upload artefacts
-        run: gh release upload "$RELEASE_TAG" _build/precompiled/*.tar.gz --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Store precompiled artefact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: precompile-x86_64-linux-gnu
+          path: _build/precompiled/*.tar.gz
+          if-no-files-found: error
+
+      - name: Store target checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: precompile-x86_64-linux-gnu-checksum
+          path: checksum.exs
+          if-no-files-found: error
 
   # ── Linux (aarch64-linux-gnu) ─────────────────────────────────────────────
   precompile-linux-arm64:
     name: Precompile / aarch64-linux-gnu
-    needs: create-draft-release
+    needs: prepare-release
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: write
+      contents: read
     env:
       MIX_ENV: prod
       # setup-beam does not yet map GitHub's ubuntu24-arm64 ImageOS label.
@@ -200,7 +255,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare-release.outputs.target-sha }}
           persist-credentials: false
 
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
@@ -229,25 +284,31 @@ jobs:
           mkdir -p _build/precompiled
           mix elixir_make.precompile
 
-      - name: Upload artefacts
-        run: gh release upload "$RELEASE_TAG" _build/precompiled/*.tar.gz --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Store precompiled artefact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: precompile-aarch64-linux-gnu
+          path: _build/precompiled/*.tar.gz
+          if-no-files-found: error
 
-  # ── Generate checksum file ────────────────────────────────────────────────
-  checksum:
-    name: Generate checksum
-    needs: [precompile-macos, precompile-linux, precompile-linux-arm64]
+      - name: Store target checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: precompile-aarch64-linux-gnu-checksum
+          path: checksum.exs
+          if-no-files-found: error
+
+  validation:
+    name: CI, E2E, and Valgrind
+    needs: [prepare-release, precompile-linux]
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
     env:
-      MIX_ENV: prod
+      ELIXIR_MAKE_CACHE_DIR: ${{ runner.temp }}/elixir_make
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare-release.outputs.target-sha }}
           persist-credentials: false
 
       - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
@@ -255,12 +316,135 @@ jobs:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - name: Get Elixir deps
+      - name: Install runtime test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libcjson1 valgrind
+
+      - name: Restore x86_64 worker
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-x86_64-linux-gnu
+          path: ${{ env.ELIXIR_MAKE_CACHE_DIR }}
+
+      - name: Restore validation checksum
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-x86_64-linux-gnu-checksum
+          path: .
+
+      - name: Get deps
         run: mix deps.get
 
-      - name: Fetch all precompiled artefacts and generate checksum
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Credo
+        run: mix credo --strict --ignore todo
+
+      - name: Dialyzer
+        run: mix dialyzer --format github
+
+      - name: Unit tests
+        run: mix test test/unit
+
+      - name: Download and validate kernels
+        run: mix angelus.prepare
+
+      - name: E2E tests (CSPICE)
+        run: mix test test/e2e --include e2e
+
+      - name: Run Valgrind leak check
+        env:
+          ANGELUS_WORKER: ${{ github.workspace }}/_build/test/lib/angelus/priv/angelus_worker
+        run: elixir scripts/native_leak_check.exs
+
+  upload-release-assets:
+    name: Upload release assets
+    needs:
+      [create-draft-release, precompile-macos, precompile-linux, precompile-linux-arm64]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download macOS artefact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-aarch64-apple-darwin
+          path: precompiled
+
+      - name: Download x86_64 Linux artefact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-x86_64-linux-gnu
+          path: precompiled
+
+      - name: Download ARM64 Linux artefact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-aarch64-linux-gnu
+          path: precompiled
+
+      - name: Upload precompiled artefacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" precompiled/*.tar.gz --clobber
+
+  # ── Generate checksum file ────────────────────────────────────────────────
+  checksum:
+    name: Generate checksum
+    needs: upload-release-assets
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      MIX_ENV: prod
+
+    steps:
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1.24.0
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Download macOS checksum
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-aarch64-apple-darwin-checksum
+          path: checksums/aarch64-apple-darwin
+
+      - name: Download x86_64 Linux checksum
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-x86_64-linux-gnu-checksum
+          path: checksums/x86_64-linux-gnu
+
+      - name: Download ARM64 Linux checksum
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-aarch64-linux-gnu-checksum
+          path: checksums/aarch64-linux-gnu
+
+      - name: Merge precompiled checksums
         run: |
-          MIX_ENV=prod mix elixir_make.checksum --all --ignore-unavailable
+          elixir -e '
+            checksums =
+              "checksums/*/checksum.exs"
+              |> Path.wildcard()
+              |> Enum.reduce(%{}, fn path, acc ->
+                {entries, _binding} = Code.eval_file(path)
+                Map.merge(acc, entries)
+              end)
+
+            if map_size(checksums) != 3 do
+              raise "expected checksums for three precompiled targets, got #{map_size(checksums)}"
+            end
+
+            File.write!("checksum.exs", inspect(checksums, pretty: true, width: 120) <> "\n")
+          '
           cat checksum.exs
 
       - name: Upload checksum file
@@ -277,14 +461,13 @@ jobs:
   # ── Publish to Hex.pm ────────────────────────────────────────────────────
   publish:
     name: Publish to Hex.pm
-    needs: checksum
+    needs: [checksum, precompile-linux]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     env:
       MIX_ENV: dev
-      # Draft-release assets are not yet available at the versioned download URL.
-      ANGELUS_FORCE_BUILD: "1"
+      ELIXIR_MAKE_CACHE_DIR: ${{ runner.temp }}/elixir_make
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -297,25 +480,25 @@ jobs:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y build-essential curl jq ninja-build libcjson-dev python3-pip
-          python3 -m pip install --user --break-system-packages 'meson>=1.11.1'
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: Get deps
         run: mix deps.get
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - name: Restore x86_64 worker
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: precompile-x86_64-linux-gnu
+          path: ${{ env.ELIXIR_MAKE_CACHE_DIR }}
+
+      - name: Restore checksum
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: checksum
           path: .
 
       - name: Publish to Hex.pm
-        run: mix hex.publish --yes
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: mix hex.publish --yes
 
   publish-release:
     name: Publish GitHub release

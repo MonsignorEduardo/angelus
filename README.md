@@ -5,7 +5,7 @@ a supplied instant. Its only public API is `Angelus.get_ephemeride/1`.
 
 ## Supported Bodies
 
-Angelus 1.0.0 returns these body atoms in a fixed order:
+Angelus 1.0.1 returns these body atoms in a fixed order:
 
 ```elixir
 [

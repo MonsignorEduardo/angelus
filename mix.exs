@@ -2,7 +2,7 @@ defmodule Angelus.MixProject do
   use Mix.Project
 
   @app :angelus
-  @version "1.0.0"
+  @version "1.0.1"
   @source_url "https://github.com/MonsignorEduardo/angelus"
   @priv_paths ["angelus_worker"]
 

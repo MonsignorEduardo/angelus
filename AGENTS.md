@@ -2,7 +2,7 @@
 
 ## Project Shape
 
-- Angelus 1.0.0 is an Elixir `~> 1.20.2` library backed by a native C `angelus_worker` port for NAIF CSPICE/JPL ephemerides.
+- Angelus 1.0.1 is an Elixir `~> 1.20.2` library backed by a native C `angelus_worker` port for NAIF CSPICE/JPL ephemerides.
 - The sole public API is `Angelus.get_ephemeride/1` in `lib/angelus.ex`; its result model is `lib/angelus/ephemeride.ex`. Internal SPICE access is in `lib/angelus/astro.ex`, `lib/angelus/motor.ex`, and `lib/angelus/motor/server.ex`.
 - Results are geocentric and scientific: ecliptic latitude (`lat`), true-equatorial declination (`decl`), and observed motion. Do not reintroduce zodiac signs or formatted ecliptic longitudes.
 - `mix compile` drives the native build through `elixir_make` -> `native/Makefile` -> `native/meson.build`; do not run `make` or `meson` directly unless debugging that layer.
