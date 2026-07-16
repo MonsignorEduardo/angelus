@@ -303,7 +303,7 @@ jobs:
     needs: [prepare-release, precompile-linux]
     runs-on: ubuntu-24.04
     env:
-      ELIXIR_MAKE_CACHE_DIR: ${{ runner.temp }}/elixir_make
+      ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/_build/elixir_make_cache
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -467,7 +467,7 @@ jobs:
       contents: read
     env:
       MIX_ENV: dev
-      ELIXIR_MAKE_CACHE_DIR: ${{ runner.temp }}/elixir_make
+      ELIXIR_MAKE_CACHE_DIR: ${{ github.workspace }}/_build/elixir_make_cache
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
