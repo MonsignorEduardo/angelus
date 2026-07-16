@@ -392,7 +392,7 @@ jobs:
       - name: Upload precompiled artefacts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" precompiled/*.tar.gz --clobber
+        run: gh release upload "$RELEASE_TAG" precompiled/*.tar.gz --repo "${{ github.repository }}" --clobber
 
   # ── Generate checksum file ────────────────────────────────────────────────
   checksum:
@@ -448,7 +448,7 @@ jobs:
           cat checksum.exs
 
       - name: Upload checksum file
-        run: gh release upload "$RELEASE_TAG" checksum.exs --clobber
+        run: gh release upload "$RELEASE_TAG" checksum.exs --repo "${{ github.repository }}" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
 
