@@ -32,10 +32,10 @@ static int handle_load_kernels(int id, const LoadKernelsArgs *args) {
 }
 
 static int handle_body(int id, const BodyArgs *args) {
-  BodyResult result = get_position(args->target, args->utc);
+  BodyResult result = get_position(args->target, args->utc, &args->observer);
 
   if (result.ok)
-    return send_ok_body(id, &result.state);
+    return send_ok_body(id, &result);
   else
     return send_error(id, result.error);
 }

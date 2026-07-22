@@ -40,12 +40,27 @@ typedef enum {
 } AngelusAberrationCorrection;
 
 typedef struct {
+  int present;
+  double latitude_rad;
+  double longitude_rad;
+  double height_km;
+} AngelusSurfaceObserver;
+
+typedef struct {
   double state_km[6];
   double light_time_seconds;
   double et_seconds;
   double longitude_rad;
   double latitude_rad;
   double declination_rad;
+  double right_ascension_rad;
+  double longitude_rate_rad_day;
+  double latitude_rate_rad_day;
+  double right_ascension_rate_rad_day;
+  double declination_rate_rad_day;
+  double direction_j2000[3];
+  double distance_au;
+  double radial_velocity_km_s;
   AngelusReferenceFrame frame;
   AngelusReferenceFrame coordinate_frame;
   AngelusAberrationCorrection abcorr;

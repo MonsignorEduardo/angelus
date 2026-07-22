@@ -5,54 +5,85 @@ defmodule Angelus.EphemerideTest do
   alias Angelus.Astro.Point
   alias Angelus.Ephemeride
 
-  test "returns the fixed ordered body set with scientific coordinates" do
+  test "builds schema version 2 with separate physical and mathematical entries" do
     datetime = ~U[2000-01-01 12:00:00Z]
 
-    positions = %{
-      sun: %Body{longitude: 10.0, latitude: 1.5, declination: 5.0},
-      moon: %Body{longitude: 20.0, latitude: 0.0, declination: 0.0},
-      mercury: %Body{longitude: 30.0, latitude: 0.0, declination: 0.0},
-      venus: %Body{longitude: 40.0, latitude: 0.0, declination: 0.0},
-      mars: %Body{longitude: 50.0, latitude: 0.0, declination: 0.0},
-      jupiter: %Body{longitude: 60.0, latitude: 0.0, declination: 0.0},
-      saturn: %Body{longitude: 70.0, latitude: 0.0, declination: 0.0},
-      uranus: %Body{longitude: 80.0, latitude: 0.0, declination: 0.0},
-      neptune: %Body{longitude: 90.0, latitude: 0.0, declination: 0.0},
-      pluto: %Body{longitude: 100.0, latitude: 0.0, declination: 0.0},
-      true_node: %Point{longitude_rad: :math.pi() / 2, declination: 23.4},
-      lilith: %Point{longitude_rad: :math.pi(), declination: 0.0},
-      chiron: %Body{longitude: 190.0, latitude: 0.0, declination: 0.0}
-    }
+    positions =
+      Map.new(
+        [
+          :sun,
+          :moon,
+          :mercury,
+          :venus,
+          :mars,
+          :jupiter,
+          :saturn,
+          :uranus,
+          :neptune,
+          :pluto,
+          :chiron
+        ],
+        &{&1, body()}
+      )
 
-    previous_positions = Map.update!(positions, :sun, &%{&1 | longitude: 9.0})
-    ephemeride = Ephemeride.from_positions(datetime, positions, previous_positions)
+    positions = Map.merge(positions, %{true_node: point(:true_node), lilith: point(:lilith)})
 
-    assert Enum.map(ephemeride.positions, & &1.body) == Ephemeride.bodies()
-    assert ephemeride.datetime == datetime
-    assert ephemeride.weekday == :saturday
-    assert %{hour: 18, minute: 41, second: 51} = ephemeride.sidereal_time
+    ephemeride = Ephemeride.from_positions(datetime, positions)
 
-    assert %{
-             observer: :earth_center,
-             earth: %{
-               shape: :oblate_spheroid,
-               equatorial_radius_km: 6378.1366,
-               polar_radius_km: 6356.7519,
-               flattening: flattening
-             },
-             coordinate_frame: :true_ecliptic_of_date,
-             aberration_correction: "CN+S"
-           } = ephemeride.reference
+    assert ephemeride.schema_version == 2
+    assert ephemeride.time.utc == datetime
+    assert ephemeride.time.quality == :modelled
+    assert ephemeride.reference.observers == %{geocentric: %{origin: :earth_center}}
 
-    assert_in_delta flattening, 0.0033528131084554717, 1.0e-15
+    assert Enum.map(ephemeride.bodies, & &1.id) == [
+             :sun,
+             :moon,
+             :mercury,
+             :venus,
+             :mars,
+             :jupiter,
+             :saturn,
+             :uranus,
+             :neptune,
+             :pluto,
+             :chiron
+           ]
 
-    assert %{body: :sun, lat: 1.5, decl: 5.0, motion: :direct} = hd(ephemeride.positions)
+    assert Enum.map(ephemeride.points, & &1.id) == [:north_node, :south_node, :lilith]
 
-    north_node = Enum.find(ephemeride.positions, &(&1.body == :north_node))
-    south_node = Enum.find(ephemeride.positions, &(&1.body == :south_node))
-    assert north_node.lat == 0.0
-    assert south_node.lat == 0.0
-    assert north_node.decl == 23.4
-    assert south_node.decl == -23.4
+    solution = hd(ephemeride.bodies).solutions.geocentric
+    assert solution.state.frame == :eclipj2000
+    assert solution.direction.frame == :j2000
+    assert solution.ecliptic.frame == :true_ecliptic_of_date
+    assert solution.equatorial.frame == :true_equatorial_of_date
+    assert solution.calculation.observer == :earth_center
+
+    north = hd(ephemeride.points).solutions.geocentric
+    south = Enum.at(ephemeride.points, 1).solutions.geocentric
+    assert_in_delta north.direction.x, -south.direction.x, 1.0e-15
+    assert_in_delta north.equatorial.declination_rad, -south.equatorial.declination_rad, 1.0e-15
   end
+
+  defp body do
+    %Body{
+      position_km: {1.0, 2.0, 3.0},
+      velocity_km_s: {4.0, 5.0, 6.0},
+      distance_au: 1.0,
+      radial_velocity_km_s: 2.0,
+      light_time_seconds: 3.0,
+      et_seconds: 0.0,
+      longitude_rad: 0.1,
+      latitude_rad: 0.2,
+      declination_rad: 0.3,
+      right_ascension_rad: 0.4,
+      longitude_rate_rad_day: 0.5,
+      latitude_rate_rad_day: 0.6,
+      right_ascension_rate_rad_day: 0.7,
+      declination_rate_rad_day: 0.8,
+      direction_j2000: {0.1, 0.2, 0.3}
+    }
+  end
+
+  defp point(id),
+    do: %Point{point: id, longitude_rad: 0.1, declination_rad: 0.2, speed_rad_day: 0.3}
 end

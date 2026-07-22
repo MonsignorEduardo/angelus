@@ -84,7 +84,7 @@ defmodule Angelus.Motor.Server do
   end
 
   # body/math_point: return kernels_not_loaded when no kernels (covers nil port too)
-  def handle_call({:body, _target, _utc}, _from, %{kernel_state: state_name} = state)
+  def handle_call({:body, _target, _utc, _observer}, _from, %{kernel_state: state_name} = state)
       when state_name != :loaded,
       do: {:reply, {:error, :kernels_not_loaded}, state}
 
@@ -92,22 +92,22 @@ defmodule Angelus.Motor.Server do
       when state_name != :loaded,
       do: {:reply, {:error, :kernels_not_loaded}, state}
 
-  def handle_call({:body, target, utc}, from, state) do
+  def handle_call({:body, target, utc, observer}, from, state) do
     iso8601 = DateTime.to_iso8601(utc)
     {id, new_state} = next_id(state)
 
     Logger.debug("Requesting body state", request_id: id, target: target, utc: iso8601)
 
     meta = %{
-      observer: "EARTH",
+      observer: if(observer, do: "SURFACE_LOCATION", else: "EARTH_CENTER"),
       abcorr: "CN+S",
       frame_base: "ECLIPJ2000",
       coordinate_frame: "TRUE_ECLIPTIC_OF_DATE",
-      state: :geocentric,
+      state: if(observer, do: :topocentric, else: :geocentric),
       kernel_metadata: state.metadata
     }
 
-    case send_to_port(state.port, WorkerProtocol.encode_body(id, target, iso8601)) do
+    case send_to_port(state.port, WorkerProtocol.encode_body(id, target, iso8601, observer)) do
       :ok ->
         {:noreply, put_pending(new_state, id, %{kind: :body, from: from, meta: meta})}
 
@@ -212,8 +212,9 @@ defmodule Angelus.Motor.Server do
   def load_kernels(paths, opts), do: call({:load_kernels, paths, opts})
 
   @doc "Combined UTC -> ET -> body state round-trip via the native worker."
-  @spec get_body(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
-  def get_body(target, utc), do: call({:body, target, utc})
+  @spec get_body(String.t(), DateTime.t(), Angelus.Observer.t() | nil) ::
+          {:ok, map()} | {:error, term()}
+  def get_body(target, utc, observer), do: call({:body, target, utc, observer})
 
   @doc "Returns a mathematical point state via the native worker."
   @spec get_math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
@@ -404,8 +405,27 @@ defmodule Angelus.Motor.Server do
 
   defp handle_body_result({:ok, raw}, meta) do
     case WorkerProtocol.coerce_body(raw) do
-      {:ok, coerced} -> {:ok, Map.merge(coerced, body_metadata(meta))}
-      {:error, _} -> {:error, :invalid_body_result}
+      {:ok, %{geocentric: _geocentric, topocentric: nil}} when meta.state == :topocentric ->
+        {:error, :incompatible_worker_protocol}
+
+      {:ok, %{geocentric: geocentric, topocentric: nil}} ->
+        {:ok, Map.merge(geocentric, body_metadata(meta))}
+
+      {:ok, %{geocentric: geocentric, topocentric: topocentric}} ->
+        {:ok,
+         %{
+           geocentric: Map.merge(geocentric, body_metadata(%{meta | state: :geocentric})),
+           topocentric: Map.merge(topocentric, body_metadata(meta))
+         }}
+
+      {:ok, _coerced} when meta.state == :topocentric ->
+        {:error, :incompatible_worker_protocol}
+
+      {:ok, coerced} ->
+        {:ok, Map.merge(coerced, body_metadata(meta))}
+
+      {:error, _} ->
+        {:error, :invalid_body_result}
     end
   end
 

@@ -62,6 +62,39 @@ static int parse_load_kernels(cJSON *root, LoadKernelsArgs *args) {
   return 0;
 }
 
+static int parse_surface_observer(cJSON *root, AngelusSurfaceObserver *observer) {
+  cJSON *item = cJSON_GetObjectItemCaseSensitive(root, "observer");
+  if (!item)
+    return 0;
+
+  if (!cJSON_IsObject(item))
+    return -1;
+
+  cJSON *kind = cJSON_GetObjectItemCaseSensitive(item, "kind");
+  cJSON *latitude = cJSON_GetObjectItemCaseSensitive(item, "latitude_rad");
+  cJSON *longitude = cJSON_GetObjectItemCaseSensitive(item, "longitude_rad");
+  cJSON *height = cJSON_GetObjectItemCaseSensitive(item, "height_km");
+  cJSON *frame = cJSON_GetObjectItemCaseSensitive(item, "body_fixed_frame");
+
+  if (!cJSON_IsString(kind) || strcmp(kind->valuestring, "surface") != 0 ||
+      !cJSON_IsString(frame) || strcmp(frame->valuestring, "ITRF93") != 0 ||
+      !cJSON_IsNumber(latitude) || !isfinite(latitude->valuedouble) ||
+      !cJSON_IsNumber(longitude) || !isfinite(longitude->valuedouble) ||
+      !cJSON_IsNumber(height) || !isfinite(height->valuedouble) ||
+      latitude->valuedouble < -1.5707963267948966 ||
+      latitude->valuedouble > 1.5707963267948966 ||
+      longitude->valuedouble < -3.1415926535897932 ||
+      longitude->valuedouble > 3.1415926535897932 ||
+      height->valuedouble < -0.5 || height->valuedouble > 100.0)
+    return -1;
+
+  observer->present = 1;
+  observer->latitude_rad = latitude->valuedouble;
+  observer->longitude_rad = longitude->valuedouble;
+  observer->height_km = height->valuedouble;
+  return 0;
+}
+
 ParsedAction parse_packet(const char *json) {
   ParsedAction action = {0};
   action.name = ACTION_INVALID;
@@ -100,7 +133,8 @@ ParsedAction parse_packet(const char *json) {
     break;
   case ACTION_BODY:
     if (parse_request_string(root, "target", &action.args.body.target) != 0 ||
-        parse_request_string(root, "utc", &action.args.body.utc) != 0) {
+        parse_request_string(root, "utc", &action.args.body.utc) != 0 ||
+        parse_surface_observer(root, &action.args.body.observer) != 0) {
       action.name = ACTION_INVALID;
       action.error = "invalid body arguments";
     }

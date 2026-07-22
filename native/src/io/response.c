@@ -38,15 +38,11 @@ int send_ok_str(int id, const char *value) {
   return send_json(root);
 }
 
-int send_ok_body(int id, const AngelusBodyState *state) {
-  cJSON *root = cJSON_CreateObject();
-  if (!root || !state)
-    goto fail;
-
-  cJSON *result = cJSON_AddObjectToObject(root, "result");
-  if (!result || !cJSON_AddNumberToObject(root, "id", id) ||
-      !cJSON_AddTrueToObject(root, "ok"))
-    goto fail;
+static cJSON *body_state_json(const AngelusBodyState *state, const char *observer,
+                              const char *observer_frame) {
+  cJSON *result = cJSON_CreateObject();
+  if (!result)
+    return NULL;
 
   cJSON *state_km = cJSON_AddArrayToObject(result, "state_km");
   if (!state_km)
@@ -62,16 +58,83 @@ int send_ok_body(int id, const AngelusBodyState *state) {
     }
   }
 
-  if (!isfinite(state->light_time_seconds) || !isfinite(state->et_seconds) ||
-       !isfinite(state->longitude_rad) || !isfinite(state->latitude_rad) ||
-       !isfinite(state->declination_rad) ||
-      !cJSON_AddNumberToObject(result, "light_time_seconds",
-                                state->light_time_seconds) ||
-       !cJSON_AddNumberToObject(result, "et_seconds", state->et_seconds) ||
-       !cJSON_AddNumberToObject(result, "longitude_rad", state->longitude_rad) ||
-       !cJSON_AddNumberToObject(result, "latitude_rad", state->latitude_rad) ||
-       !cJSON_AddNumberToObject(result, "declination_rad", state->declination_rad))
+  cJSON *direction_j2000 = cJSON_AddArrayToObject(result, "direction_j2000");
+  if (!direction_j2000)
     goto fail;
+
+  for (int i = 0; i < 3; i++) {
+    if (!isfinite(state->direction_j2000[i]))
+      goto fail;
+    cJSON *number = cJSON_CreateNumber(state->direction_j2000[i]);
+    if (!number || !cJSON_AddItemToArray(direction_j2000, number)) {
+      cJSON_Delete(number);
+      goto fail;
+    }
+  }
+
+  if (!isfinite(state->light_time_seconds) || !isfinite(state->longitude_rad) ||
+      !isfinite(state->latitude_rad) || !isfinite(state->declination_rad) ||
+      !isfinite(state->right_ascension_rad) || !isfinite(state->longitude_rate_rad_day) ||
+      !isfinite(state->latitude_rate_rad_day) ||
+      !isfinite(state->right_ascension_rate_rad_day) ||
+      !isfinite(state->declination_rate_rad_day) || !isfinite(state->distance_au) ||
+      !isfinite(state->radial_velocity_km_s) ||
+      !cJSON_AddNumberToObject(result, "light_time_seconds", state->light_time_seconds) ||
+      !cJSON_AddNumberToObject(result, "longitude_rad", state->longitude_rad) ||
+      !cJSON_AddNumberToObject(result, "latitude_rad", state->latitude_rad) ||
+      !cJSON_AddNumberToObject(result, "declination_rad", state->declination_rad) ||
+      !cJSON_AddNumberToObject(result, "right_ascension_rad", state->right_ascension_rad) ||
+      !cJSON_AddNumberToObject(result, "longitude_rate_rad_day",
+                               state->longitude_rate_rad_day) ||
+      !cJSON_AddNumberToObject(result, "latitude_rate_rad_day",
+                               state->latitude_rate_rad_day) ||
+      !cJSON_AddNumberToObject(result, "right_ascension_rate_rad_day",
+                               state->right_ascension_rate_rad_day) ||
+      !cJSON_AddNumberToObject(result, "declination_rate_rad_day",
+                               state->declination_rate_rad_day) ||
+      !cJSON_AddNumberToObject(result, "distance_au", state->distance_au) ||
+      !cJSON_AddNumberToObject(result, "radial_velocity_km_s",
+                               state->radial_velocity_km_s) ||
+      !cJSON_AddStringToObject(result, "frame", "ECLIPJ2000") ||
+      !cJSON_AddStringToObject(result, "observer", observer) ||
+      !cJSON_AddStringToObject(result, "abcorr", "CN+S"))
+    goto fail;
+
+  if (observer_frame && !cJSON_AddStringToObject(result, "observer_frame", observer_frame))
+    goto fail;
+
+  return result;
+
+fail:
+  cJSON_Delete(result);
+  return NULL;
+}
+
+int send_ok_body(int id, const BodyResult *body) {
+  cJSON *root = cJSON_CreateObject();
+  if (!root || !body)
+    goto fail;
+
+  cJSON *result = cJSON_AddObjectToObject(root, "result");
+  if (!result || !cJSON_AddNumberToObject(root, "id", id) ||
+      !cJSON_AddTrueToObject(root, "ok") ||
+      !cJSON_AddNumberToObject(result, "protocol_version", 2) ||
+      !cJSON_AddNumberToObject(result, "et_seconds", body->geocentric.et_seconds))
+    goto fail;
+
+  cJSON *geocentric = body_state_json(&body->geocentric, "EARTH_CENTER", NULL);
+  if (!geocentric || !cJSON_AddItemToObject(result, "geocentric", geocentric)) {
+    cJSON_Delete(geocentric);
+    goto fail;
+  }
+
+  if (body->has_topocentric) {
+    cJSON *topocentric = body_state_json(&body->topocentric, "SURFACE_LOCATION", "ITRF93");
+    if (!topocentric || !cJSON_AddItemToObject(result, "topocentric", topocentric)) {
+      cJSON_Delete(topocentric);
+      goto fail;
+    }
+  }
 
   return send_json(root);
 

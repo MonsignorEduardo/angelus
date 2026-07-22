@@ -14,6 +14,14 @@ defmodule Angelus.Astro.Body do
     :latitude_rad,
     :declination,
     :declination_rad,
+    :right_ascension_rad,
+    :longitude_rate_rad_day,
+    :latitude_rate_rad_day,
+    :right_ascension_rate_rad_day,
+    :declination_rate_rad_day,
+    :direction_j2000,
+    :radial_velocity_km_s,
+    :solutions,
     :metadata
   ]
 
@@ -45,6 +53,14 @@ defmodule Angelus.Astro.Body do
           latitude_rad: float() | nil,
           declination: float() | nil,
           declination_rad: float() | nil,
+          right_ascension_rad: float() | nil,
+          longitude_rate_rad_day: float() | nil,
+          latitude_rate_rad_day: float() | nil,
+          right_ascension_rate_rad_day: float() | nil,
+          declination_rate_rad_day: float() | nil,
+          direction_j2000: {float(), float(), float()} | nil,
+          radial_velocity_km_s: float() | nil,
+          solutions: %{optional(:geocentric | :topocentric) => map()} | nil,
           metadata: map() | nil
         }
 end

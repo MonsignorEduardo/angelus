@@ -7,6 +7,8 @@
 
 #include <cjson/cJSON.h>
 
+#include "astro/state.h"
+
 #define REQUEST_MAX_PATHS 32
 
 typedef enum {
@@ -27,6 +29,7 @@ typedef struct {
 typedef struct {
   const char *target;
   const char *utc;
+  AngelusSurfaceObserver observer;
 } BodyArgs;
 
 typedef struct {

@@ -14,11 +14,16 @@ defmodule Angelus.Astro.Adapters.Spice do
   @impl true
   @spec get_position(DateTime.t(), atom()) ::
           {:ok, Body.t() | Point.t()} | {:error, term()}
-  def get_position(%DateTime{} = utc, target) do
+  def get_position(%DateTime{} = utc, target), do: get_position(utc, target, nil)
+
+  @impl true
+  @spec get_position(DateTime.t(), atom(), Angelus.Observer.t() | nil) ::
+          {:ok, Body.t() | Point.t()} | {:error, term()}
+  def get_position(%DateTime{} = utc, target, observer) do
     with {:ok, metadata} <- Catalog.get_metadata(target) do
       case metadata.target_kind do
         kind when kind in [:body_center, :minor_planet] ->
-          fetch_body(utc, target, metadata)
+          fetch_body(utc, target, metadata, observer)
 
         kind when kind in [:lunar_node, :lunar_apogee] ->
           fetch_point(utc, target, metadata)
@@ -26,8 +31,8 @@ defmodule Angelus.Astro.Adapters.Spice do
     end
   end
 
-  defp fetch_body(utc, body, target) do
-    with {:ok, state} <- Angelus.Motor.get_body(target.spice_target, utc) do
+  defp fetch_body(utc, body, target, observer) do
+    with {:ok, state} <- Angelus.Motor.get_body(target.spice_target, utc, observer) do
       {:ok, build_body(body, state)}
     end
   end
@@ -39,20 +44,35 @@ defmodule Angelus.Astro.Adapters.Spice do
   end
 
   defp build_body(body, state) do
+    geocentric = Map.get(state, :geocentric, state)
+
+    solutions =
+      if Map.has_key?(state, :geocentric),
+        do: Map.take(state, [:geocentric, :topocentric]),
+        else: %{geocentric: geocentric}
+
     %Body{
       body: body,
-      position_km: Map.get(state, :position_km),
-      velocity_km_s: Map.get(state, :velocity_km_s),
-      distance_au: Map.get(state, :distance_au),
-      light_time_seconds: Map.get(state, :light_time_seconds),
-      et_seconds: Map.get(state, :et_seconds),
-      longitude: Map.get(state, :longitude),
-      latitude: Map.get(state, :latitude),
-      longitude_rad: Map.get(state, :longitude_rad),
-      latitude_rad: Map.get(state, :latitude_rad),
-      declination: Map.get(state, :declination),
-      declination_rad: Map.get(state, :declination_rad),
-      metadata: metadata(state)
+      position_km: Map.get(geocentric, :position_km),
+      velocity_km_s: Map.get(geocentric, :velocity_km_s),
+      distance_au: Map.get(geocentric, :distance_au),
+      light_time_seconds: Map.get(geocentric, :light_time_seconds),
+      et_seconds: Map.get(geocentric, :et_seconds),
+      longitude: Map.get(geocentric, :longitude),
+      latitude: Map.get(geocentric, :latitude),
+      longitude_rad: Map.get(geocentric, :longitude_rad),
+      latitude_rad: Map.get(geocentric, :latitude_rad),
+      declination: Map.get(geocentric, :declination),
+      declination_rad: Map.get(geocentric, :declination_rad),
+      right_ascension_rad: Map.get(geocentric, :right_ascension_rad),
+      longitude_rate_rad_day: Map.get(geocentric, :longitude_rate_rad_day),
+      latitude_rate_rad_day: Map.get(geocentric, :latitude_rate_rad_day),
+      right_ascension_rate_rad_day: Map.get(geocentric, :right_ascension_rate_rad_day),
+      declination_rate_rad_day: Map.get(geocentric, :declination_rate_rad_day),
+      direction_j2000: Map.get(geocentric, :direction_j2000),
+      radial_velocity_km_s: Map.get(geocentric, :radial_velocity_km_s),
+      solutions: solutions,
+      metadata: metadata(geocentric)
     }
   end
 

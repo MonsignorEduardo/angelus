@@ -15,6 +15,75 @@
 static const char *POSITION_OBSERVER = "EARTH";
 static const char *POSITION_FRAME = "ECLIPJ2000";
 static const char *POSITION_ABCORR = "CN+S";
+static const char *SURFACE_OBSERVER_FRAME = "ITRF93";
+
+static void fill_error(char *buf, int size, const char *msg);
+static void get_cspice_error(char *buf, int size);
+
+static int itrf93_coverage(SpiceDouble et, char *error, int error_size) {
+  SpiceInt frame_id;
+  SpiceInt center;
+  SpiceInt frame_class;
+  SpiceInt class_id;
+  SpiceBoolean found;
+  SpiceInt kernel_count;
+  SPICEDOUBLE_CELL(coverage, 200);
+
+  namfrm_c(SURFACE_OBSERVER_FRAME, &frame_id);
+  frinfo_c(frame_id, &center, &frame_class, &class_id, &found);
+  if (failed_c()) {
+    get_cspice_error(error, error_size);
+    return 0;
+  }
+  if (frame_id == 0 || !found) {
+    fill_error(error, error_size, "ITRF93 frame data are unavailable");
+    return 0;
+  }
+
+  ktotal_c("PCK", &kernel_count);
+  if (failed_c()) {
+    get_cspice_error(error, error_size);
+    return 0;
+  }
+
+  for (SpiceInt index = 0; index < kernel_count; index++) {
+    SpiceChar file[1024] = {0};
+    SpiceChar type[64] = {0};
+    SpiceChar source[1024] = {0};
+    SpiceInt handle;
+
+    kdata_c(index, "PCK", sizeof(file), sizeof(type), sizeof(source), file,
+            type, source, &handle, &found);
+    if (failed_c()) {
+      get_cspice_error(error, error_size);
+      return 0;
+    }
+    if (found) {
+      SpiceChar architecture[32] = {0};
+      SpiceChar file_type[32] = {0};
+      getfat_c(file, sizeof(architecture), sizeof(file_type), architecture, file_type);
+      if (failed_c()) {
+        get_cspice_error(error, error_size);
+        return 0;
+      }
+
+      if (strcmp(architecture, "DAF") == 0 && strcmp(file_type, "PCK") == 0) {
+        pckcov_c(file, class_id, &coverage);
+        if (failed_c()) {
+          get_cspice_error(error, error_size);
+          return 0;
+        }
+      }
+    }
+  }
+
+  if (wncard_c(&coverage) == 0 || !wnincd_c(et, et, &coverage)) {
+    fill_error(error, error_size, "observer outside ITRF93 coverage");
+    return 0;
+  }
+
+  return 1;
+}
 
 static void fill_error(char *buf, int size, const char *msg) {
   if (buf && size > 0) {
@@ -63,7 +132,43 @@ OpResult ops_load_kernels(const char *const *paths, int count) {
   return result;
 }
 
-BodyResult get_position(const char *target, const char *iso8601) {
+static int populate_body_state(AngelusBodyState *result, const SpiceDouble state[6],
+                               SpiceDouble light_time, SpiceDouble et,
+                               char *error, int error_size) {
+  for (int i = 0; i < 6; i++)
+    result->state_km[i] = state[i];
+
+  result->light_time_seconds = light_time;
+  result->et_seconds = et;
+  if (!astro_body_coordinates(
+          et, result->state_km, result->direction_j2000, &result->longitude_rad,
+          &result->latitude_rad, &result->declination_rad, &result->right_ascension_rad,
+          &result->longitude_rate_rad_day, &result->latitude_rate_rad_day,
+          &result->right_ascension_rate_rad_day, &result->declination_rate_rad_day,
+          error, error_size))
+    return 0;
+
+  double distance_km = sqrt(result->state_km[0] * result->state_km[0] +
+                            result->state_km[1] * result->state_km[1] +
+                            result->state_km[2] * result->state_km[2]);
+  if (distance_km <= 1.0e-15) {
+    fill_error(error, error_size, "degenerate position vector");
+    return 0;
+  }
+  result->distance_au = distance_km / 149597870.7;
+  result->radial_velocity_km_s =
+      (result->state_km[0] * result->state_km[3] +
+       result->state_km[1] * result->state_km[4] +
+       result->state_km[2] * result->state_km[5]) / distance_km;
+
+  result->frame = ANGELUS_FRAME_ECLIPJ2000;
+  result->coordinate_frame = ANGELUS_FRAME_TRUE_ECLIPTIC_OF_DATE;
+  result->abcorr = ANGELUS_ABCORR_CNS;
+  return 1;
+}
+
+BodyResult get_position(const char *target, const char *iso8601,
+                        const AngelusSurfaceObserver *observer) {
   BodyResult result = {0};
 
   TimeResult time = astro_utc_to_et(iso8601);
@@ -82,23 +187,51 @@ BodyResult get_position(const char *target, const char *iso8601) {
     return result;
   }
 
-  result.state.state_km[0] = state[0];
-  result.state.state_km[1] = state[1];
-  result.state.state_km[2] = state[2];
-  result.state.state_km[3] = state[3];
-  result.state.state_km[4] = state[4];
-  result.state.state_km[5] = state[5];
-  result.state.light_time_seconds = lt;
-  result.state.et_seconds = time.et;
-  if (!astro_true_ecliptic_coordinates(
-          time.et, result.state.state_km, &result.state.longitude_rad,
-          &result.state.latitude_rad, &result.state.declination_rad,
-          result.error, sizeof(result.error)))
+  if (!populate_body_state(&result.geocentric, state, lt, time.et, result.error,
+                           sizeof(result.error)))
     return result;
 
-  result.state.frame = ANGELUS_FRAME_ECLIPJ2000;
-  result.state.coordinate_frame = ANGELUS_FRAME_TRUE_ECLIPTIC_OF_DATE;
-  result.state.abcorr = ANGELUS_ABCORR_CNS;
+  if (observer && observer->present) {
+    SpiceDouble radii[3];
+    SpiceInt radius_count;
+    SpiceDouble observer_position[3];
+    SpiceDouble flattening;
+
+    if (!itrf93_coverage(time.et, result.error, sizeof(result.error)))
+      return result;
+
+    bodvrd_c("EARTH", "RADII", 3, &radius_count, radii);
+    if (failed_c()) {
+      get_cspice_error(result.error, sizeof(result.error));
+      return result;
+    }
+
+    if (radius_count != 3 || radii[0] <= 0.0 || radii[2] <= 0.0) {
+      fill_error(result.error, sizeof(result.error), "invalid Earth radii");
+      return result;
+    }
+
+    flattening = (radii[0] - radii[2]) / radii[0];
+    georec_c(observer->longitude_rad, observer->latitude_rad, observer->height_km,
+             radii[0], flattening, observer_position);
+    if (failed_c()) {
+      get_cspice_error(result.error, sizeof(result.error));
+      return result;
+    }
+
+    spkcpo_c(target, time.et, POSITION_FRAME, "OBSERVER", POSITION_ABCORR,
+             observer_position, POSITION_OBSERVER, SURFACE_OBSERVER_FRAME, state, &lt);
+    if (failed_c()) {
+      get_cspice_error(result.error, sizeof(result.error));
+      return result;
+    }
+
+    if (!populate_body_state(&result.topocentric, state, lt, time.et, result.error,
+                             sizeof(result.error)))
+      return result;
+
+    result.has_topocentric = 1;
+  }
 
   result.ok = 1;
   return result;

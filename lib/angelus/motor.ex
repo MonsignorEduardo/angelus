@@ -36,7 +36,8 @@ defmodule Angelus.Motor do
   def default_kernel_files, do: Enum.map(Catalog.get_kernel(), & &1.file)
 
   @doc """
-  Loads the default v0.1 SPICE kernel set from `priv/kernels/`.
+  Loads the default v0.1 SPICE kernel set from the calling Mix project's
+  `priv/kernels/` directory.
 
   Equivalent to `load_kernels([])`.
   """
@@ -94,9 +95,18 @@ defmodule Angelus.Motor do
     * `{:error, :kernels_not_loaded}` if no kernels have been loaded.
   """
   @spec get_body(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
-  def get_body(target, %DateTime{} = utc) when is_binary(target), do: Server.get_body(target, utc)
+  def get_body(target, %DateTime{} = utc) when is_binary(target), do: get_body(target, utc, nil)
 
   def get_body(_target, _utc), do: {:error, :invalid_args}
+
+  @doc false
+  @spec get_body(String.t(), DateTime.t(), Angelus.Observer.t() | nil) ::
+          {:ok, map()} | {:error, term()}
+  def get_body(target, %DateTime{} = utc, observer)
+      when is_binary(target) and (is_map(observer) or is_nil(observer)),
+      do: Server.get_body(target, utc, observer)
+
+  def get_body(_target, _utc, _observer), do: {:error, :invalid_args}
 
   @doc "Returns a mathematical point longitude/speed result from the native worker."
   @spec get_math_point(String.t(), DateTime.t()) :: {:ok, map()} | {:error, term()}
@@ -152,12 +162,7 @@ defmodule Angelus.Motor do
     end
   end
 
-  defp default_kernel_path do
-    case :code.priv_dir(:angelus) do
-      {:error, reason} -> {:error, {:priv_dir_unavailable, reason}}
-      priv_dir -> {:ok, Path.join(List.to_string(priv_dir), "kernels")}
-    end
-  end
+  defp default_kernel_path, do: {:ok, Path.join([File.cwd!(), "priv", "kernels"])}
 
   defp default_paths(base_path) when is_binary(base_path) do
     Catalog.get_kernel()

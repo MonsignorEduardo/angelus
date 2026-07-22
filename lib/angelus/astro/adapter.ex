@@ -13,4 +13,7 @@ defmodule Angelus.Astro.Adapter do
 
   @callback get_position(DateTime.t(), atom()) ::
               {:ok, Body.t() | Point.t()} | {:error, term()}
+
+  @callback get_position(DateTime.t(), atom(), Angelus.Observer.t() | nil) ::
+              {:ok, Body.t() | Point.t()} | {:error, term()}
 end

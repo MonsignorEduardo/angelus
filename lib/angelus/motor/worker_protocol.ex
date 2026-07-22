@@ -19,6 +19,11 @@ defmodule Angelus.Motor.WorkerProtocol do
   """
 
   @type request_id :: non_neg_integer()
+  @protocol_version 2
+
+  @doc "Returns the protocol version implemented by this package."
+  @spec protocol_version() :: pos_integer()
+  def protocol_version, do: @protocol_version
 
   # ── Encoding ────────────────────────────────────────────────────────────
 
@@ -52,6 +57,35 @@ defmodule Angelus.Motor.WorkerProtocol do
       "target" => spice_target,
       "utc" => iso8601
     })
+  end
+
+  @doc "Encodes a protocol v2 body request with an optional surface observer."
+  @spec encode_body(request_id(), String.t(), String.t(), Angelus.Observer.t() | nil) :: binary()
+  def encode_body(id, spice_target, iso8601, observer)
+      when is_binary(spice_target) and is_binary(iso8601) and
+             (is_map(observer) or is_nil(observer)) do
+    request = %{
+      "protocol_version" => @protocol_version,
+      "id" => id,
+      "op" => "body",
+      "target" => spice_target,
+      "utc" => iso8601
+    }
+
+    request =
+      if observer do
+        Map.put(request, "observer", %{
+          "kind" => "surface",
+          "latitude_rad" => observer.latitude_rad,
+          "longitude_rad" => observer.longitude_rad,
+          "height_km" => observer.height_km,
+          "body_fixed_frame" => "ITRF93"
+        })
+      else
+        request
+      end
+
+    Jason.encode!(request)
   end
 
   @doc "Encodes a mathematical point request."
@@ -106,6 +140,20 @@ defmodule Angelus.Motor.WorkerProtocol do
   """
   @spec coerce_body(map()) :: {:ok, map()} | {:error, :invalid_body_result}
   @spec coerce_body(term()) :: {:error, :invalid_body_result}
+  def coerce_body(
+        %{
+          "protocol_version" => 2,
+          "et_seconds" => et_seconds,
+          "geocentric" => geocentric
+        } = result
+      )
+      when is_number(et_seconds) do
+    with {:ok, geocentric} <- coerce_body_solution(geocentric, et_seconds),
+         {:ok, topocentric} <- coerce_topocentric_solution(result, et_seconds) do
+      {:ok, %{geocentric: geocentric, topocentric: topocentric}}
+    end
+  end
+
   def coerce_body(%{
         "state_km" => [x, y, z, vx, vy, vz],
         "light_time_seconds" => light_time_seconds,
@@ -141,7 +189,14 @@ defmodule Angelus.Motor.WorkerProtocol do
          longitude: longitude_rad * 180.0 / :math.pi(),
          latitude: latitude_rad * 180.0 / :math.pi(),
          declination_rad: declination_rad * 1.0,
-         declination: declination_rad * 180.0 / :math.pi()
+         declination: declination_rad * 180.0 / :math.pi(),
+         direction_j2000: direction(x, y, z),
+         right_ascension_rad: longitude_rad * 1.0,
+         longitude_rate_rad_day: 0.0,
+         latitude_rate_rad_day: 0.0,
+         right_ascension_rate_rad_day: 0.0,
+         declination_rate_rad_day: 0.0,
+         radial_velocity_km_s: radial_velocity(x, y, z, vx, vy, vz)
        }}
     else
       {:error, :invalid_body_result}
@@ -149,6 +204,62 @@ defmodule Angelus.Motor.WorkerProtocol do
   end
 
   def coerce_body(_), do: {:error, :invalid_body_result}
+
+  defp coerce_topocentric_solution(%{"topocentric" => topocentric}, et_seconds),
+    do: coerce_body_solution(topocentric, et_seconds)
+
+  defp coerce_topocentric_solution(_result, _et_seconds), do: {:ok, nil}
+
+  defp coerce_body_solution(solution, et_seconds) when is_map(solution) do
+    with {:ok, body} <- solution |> Map.put("et_seconds", et_seconds) |> coerce_body(),
+         {:ok, scientific} <- coerce_scientific_fields(solution) do
+      {:ok, Map.merge(body, scientific)}
+    end
+  end
+
+  defp coerce_body_solution(_solution, _et_seconds), do: {:error, :invalid_body_result}
+
+  defp coerce_scientific_fields(%{
+         "direction_j2000" => [direction_x, direction_y, direction_z],
+         "right_ascension_rad" => right_ascension_rad,
+         "longitude_rate_rad_day" => longitude_rate_rad_day,
+         "latitude_rate_rad_day" => latitude_rate_rad_day,
+         "right_ascension_rate_rad_day" => right_ascension_rate_rad_day,
+         "declination_rate_rad_day" => declination_rate_rad_day,
+         "distance_au" => distance_au,
+         "radial_velocity_km_s" => radial_velocity_km_s
+       }) do
+    values = [
+      direction_x,
+      direction_y,
+      direction_z,
+      right_ascension_rad,
+      longitude_rate_rad_day,
+      latitude_rate_rad_day,
+      right_ascension_rate_rad_day,
+      declination_rate_rad_day,
+      distance_au,
+      radial_velocity_km_s
+    ]
+
+    if Enum.all?(values, &is_number/1) do
+      {:ok,
+       %{
+         direction_j2000: {direction_x * 1.0, direction_y * 1.0, direction_z * 1.0},
+         right_ascension_rad: right_ascension_rad * 1.0,
+         longitude_rate_rad_day: longitude_rate_rad_day * 1.0,
+         latitude_rate_rad_day: latitude_rate_rad_day * 1.0,
+         right_ascension_rate_rad_day: right_ascension_rate_rad_day * 1.0,
+         declination_rate_rad_day: declination_rate_rad_day * 1.0,
+         distance_au: distance_au * 1.0,
+         radial_velocity_km_s: radial_velocity_km_s * 1.0
+       }}
+    else
+      {:error, :invalid_body_result}
+    end
+  end
+
+  defp coerce_scientific_fields(_solution), do: {:error, :invalid_body_result}
 
   @doc "Coerces a mathematical point result map into an Elixir map."
   @spec coerce_point(map()) :: {:ok, map()} | {:error, :invalid_point_result}
@@ -175,5 +286,14 @@ defmodule Angelus.Motor.WorkerProtocol do
 
   defp distance_au(x, y, z) do
     :math.sqrt(x * x + y * y + z * z) / 149_597_870.7
+  end
+
+  defp direction(x, y, z) do
+    norm = :math.sqrt(x * x + y * y + z * z)
+    {x / norm, y / norm, z / norm}
+  end
+
+  defp radial_velocity(x, y, z, vx, vy, vz) do
+    (x * vx + y * vy + z * vz) / :math.sqrt(x * x + y * y + z * z)
   end
 end

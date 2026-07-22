@@ -37,19 +37,23 @@ defmodule Angelus.Astro do
   """
   @spec get_positions([atom(), ...], DateTime.t(), adapter()) ::
           {:ok, %{atom() => Body.t() | Point.t()}} | {:error, term()}
-  def get_positions(bodies, datetime, adapter) do
-    with {:ok, adapter} <- validate_adapter(adapter, 2),
+  def get_positions(bodies, datetime, adapter), do: get_positions(bodies, datetime, adapter, nil)
+
+  @spec get_positions([atom(), ...], DateTime.t(), adapter(), Angelus.Observer.t() | nil) ::
+          {:ok, %{atom() => Body.t() | Point.t()}} | {:error, term()}
+  def get_positions(bodies, datetime, adapter, observer) do
+    with {:ok, adapter} <- validate_adapter(adapter, 3),
          :ok <- validate_datetime(datetime),
          :ok <- validate_body_list_shape(bodies),
          :ok <- validate_duplicates(bodies),
          :ok <- validate_public_range(datetime) do
-      build_positions(bodies, datetime, adapter)
+      build_positions(bodies, datetime, adapter, observer)
     end
   end
 
-  defp build_positions(bodies, datetime, adapter) do
+  defp build_positions(bodies, datetime, adapter, observer) do
     Enum.reduce_while(bodies, {:ok, %{}}, fn body, {:ok, acc} ->
-      case adapter.get_position(datetime, body) do
+      case adapter.get_position(datetime, body, observer) do
         {:ok, position} -> {:cont, {:ok, Map.put(acc, body, position)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end

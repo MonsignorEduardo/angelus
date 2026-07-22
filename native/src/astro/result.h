@@ -20,7 +20,9 @@ typedef struct {
 
 typedef struct {
   int ok;
-  AngelusBodyState state;
+  AngelusBodyState geocentric;
+  AngelusBodyState topocentric;
+  int has_topocentric;
   char error[1024];
 } BodyResult;
 
