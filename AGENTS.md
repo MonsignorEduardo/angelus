@@ -2,11 +2,12 @@
 
 ## Project Shape
 
-- Angelus 1.0.1 is an Elixir `~> 1.20.2` library backed by a native C `angelus_worker` port for NAIF CSPICE/JPL ephemerides.
-- The sole public API is `Angelus.get_ephemeride/1` in `lib/angelus.ex`; its result model is `lib/angelus/ephemeride.ex`. Internal SPICE access is in `lib/angelus/astro.ex`, `lib/angelus/motor.ex`, and `lib/angelus/motor/server.ex`.
-- Results are geocentric and scientific: ecliptic latitude (`lat`), true-equatorial declination (`decl`), and observed motion. Do not reintroduce zodiac signs or formatted ecliptic longitudes.
+- Angelus is an Elixir `~> 1.20.2` library backed by a native C `angelus_worker` port for NAIF CSPICE/JPL ephemerides.
+- Public APIs are `Angelus.get_ephemeride/1` and `Angelus.get_ephemeride/2`. The latter accepts kernel options and an optional, strictly validated `observer:` keyword list. The result model is `lib/angelus/ephemeride.ex`; internal SPICE access is in `lib/angelus/astro.ex`, `lib/angelus/motor.ex`, and `lib/angelus/motor/server.ex`.
+- Results use `schema_version: 2`: physical bodies always expose `solutions.geocentric` and add `solutions.topocentric` only for an observer. Mathematical points remain geocentric and have no invented distance or physical state. Do not reintroduce zodiac signs or formatted longitude strings into the API.
+- Topocentric observers are geodetic latitude, east-positive longitude, and ellipsoidal height. They require `ITRF93`; obtain actual coverage from loaded binary PCKs with `pckcov_c`, reject requests outside coverage, and never silently fall back to `IAU_EARTH`.
 - `mix compile` drives the native build through `elixir_make` -> `native/Makefile` -> `native/meson.build`; do not run `make` or `meson` directly unless debugging that layer.
-- The worker protocol is JSON over an Erlang port opened with `{:packet, 4}`; Elixir encoding/decoding lives in `Angelus.Motor.WorkerProtocol`, native request/response handling in `native/src/io/*`.
+- The worker protocol is JSON over an Erlang port opened with `{:packet, 4}`; protocol v2 carries an optional surface observer. Elixir encoding/decoding lives in `Angelus.Motor.WorkerProtocol`, native request/response handling in `native/src/io/*`.
 - `docs/BUILDING.md` has stale native target/path details; prefer `mix.exs`, `justfile`, `native/meson.build`, and CI workflows when they disagree.
 
 ## Commands
@@ -26,7 +27,7 @@
 - Source builds need a C compiler, Meson `>= 1.11.1`, Ninja, `curl`, `jq`, and system `libcjson`/`cjson` headers; CI installs Meson with `pip` because Ubuntu's package is too old.
 - Meson fetches CSPICE and ERFA through `native/subprojects/*.wrap`; the worker installs to the compiled app's `priv/angelus_worker` via `MIX_APP_PATH`.
 - Runtime resources are not bundled in Hex packages; `mix angelus.prepare` downloads the required generic kernels and the pinned Quirón SPK, then verifies its SHA-256 checksum.
-- Kernel files land in `priv/kernels/`; `Angelus.get_ephemeride/1` loads them internally.
+- Kernel files land in `priv/kernels/`; both public ephemeris calls load them internally. The Earth binary PCK provides ITRF93 orientation data; geocentric requests remain available outside its coverage when the SPK coverage permits.
 
 ## Tests And Fixtures
 

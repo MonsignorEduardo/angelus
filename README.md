@@ -1,11 +1,12 @@
 # Angelus [![Hex Version](https://img.shields.io/hexpm/v/angelus.svg)](https://hex.pm/packages/angelus) [![Hex Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://angelus.hexdocs.pm/readme.html)
 
-Angelus is an Elixir library that returns one geocentric tropical ephemeris for
-a supplied instant. Its only public API is `Angelus.get_ephemeride/1`.
+Angelus is an Elixir library backed by NAIF CSPICE/JPL kernels. It returns a
+scientific tropical ephemeris with an always-present geocentric solution and,
+when requested, a separate topocentric solution for a terrestrial observer.
 
 ## Supported Bodies
 
-Angelus 1.0.1 returns these body atoms in a fixed order:
+The physical bodies are returned in `ephemeride.bodies`:
 
 ```elixir
 [
@@ -19,14 +20,19 @@ Angelus 1.0.1 returns these body atoms in a fixed order:
   :uranus,
   :neptune,
   :pluto,
-  :north_node,
-  :south_node,
-  :lilith,
   :chiron
 ]
 ```
 
+`ephemeride.points` contains `:north_node`, `:south_node`, and `:lilith` as
+geocentric mathematical constructions. They never receive a fabricated
+topocentric distance or Cartesian state.
+
 The public datetime range is `1900-01-01` through `2100-01-24`, inclusive.
+Topocentric calculations additionally require loaded `ITRF93` Earth-orientation
+data. The bundled Earth binary PCK starts in 1962, so topocentric requests
+before its actual coverage return an explicit error; Angelus never falls back
+silently to `IAU_EARTH`.
 
 ## Installation
 
@@ -77,24 +83,62 @@ Calculate an ephemeris. Kernels load automatically on the first call:
 ```elixir
 {:ok, ephemeride} = Angelus.get_ephemeride(~U[1990-05-24 06:30:00Z])
 
-ephemeride.sidereal_time
-ephemeride.positions
+ephemeride.schema_version
+# => 2
+
+ephemeride.time.utc
+ephemeride.bodies
 ```
 
-Each result includes the UTC instant, weekday, Greenwich sidereal time, and
-the positions in this fixed order. Every position contains ecliptic latitude
-(`lat`), true-equatorial declination (`decl`), and direct/retrograde/stationary
-motion. All angular values are expressed in degrees; Angelus does not expose
-zodiac signs or formatted ecliptic longitudes.
-`ephemeride.reference` identifies Earth as the geocentric observer and supplies
-the PCK ellipsoid radii in km, flattening, coordinate frame, and aberration
-correction used by the calculation.
+Each physical entry has `solutions.geocentric`. A solution declares its
+Cartesian state in km and km/s (`ECLIPJ2000`), normalized direction (`J2000`),
+true ecliptic and equatorial coordinates of date, instantaneous angular rates,
+distance in AU, radial velocity, light time, observer, and aberration
+correction. Angles and rates are radians and radians/day unless a field states
+otherwise.
+
+### Topocentric observer
+
+Pass geodetic latitude, east-positive longitude, and ellipsoidal height in
+meters to obtain both solutions for every physical body:
+
+```elixir
+{:ok, ephemeride} =
+  Angelus.get_ephemeride(
+    ~U[1990-05-24 06:30:00Z],
+    observer: [
+      latitude_deg: 40.4168,
+      longitude_deg: -3.7038,
+      height_m: 667.0
+    ]
+  )
+
+ephemeride.bodies |> hd() |> Map.fetch!(:solutions)
+# => %{geocentric: ..., topocentric: ...}
+```
+
+All three observer fields are required. Latitude is limited to `[-90, 90]`,
+longitude to `[-180, 180]`, and height to `[-500, 100000]` meters. Longitude
+`180` is normalized to `-180`.
 
 Print the same result in a terminal with an ISO 8601 instant:
 
 ```bash
 mix angelus.ephemeride 2000-01-01T07:00:00-05:00
 ```
+
+Pass an observer to print physical bodies topocentrically while preserving the
+geocentric mathematical points:
+
+```bash
+mix angelus.ephemeride 2000-01-01T07:00:00-05:00 \
+  --latitude 40.4168 \
+  --longitude -3.7038 \
+  --height 667
+```
+
+The CLI prints ecliptic longitude/latitude, right ascension, declination,
+longitude rate, distance, and radial velocity.
 
 ## Development
 
