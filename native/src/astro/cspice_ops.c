@@ -167,6 +167,50 @@ static int populate_body_state(AngelusBodyState *result, const SpiceDouble state
   return 1;
 }
 
+static int populate_topocentric_enu_state(AngelusBodyState *result,
+                                          const SpiceDouble state_eclipj2000[6],
+                                          SpiceDouble light_time, SpiceDouble et,
+                                          const AngelusSurfaceObserver *observer,
+                                          char *error, int error_size) {
+  SpiceDouble eclipj2000_to_itrf93[6][6];
+  SpiceDouble state_itrf93[6];
+  SpiceDouble east[3] = {-sin(observer->longitude_rad), cos(observer->longitude_rad), 0.0};
+  SpiceDouble north[3] = {
+      -sin(observer->latitude_rad) * cos(observer->longitude_rad),
+      -sin(observer->latitude_rad) * sin(observer->longitude_rad),
+      cos(observer->latitude_rad)};
+  SpiceDouble up[3] = {
+      cos(observer->latitude_rad) * cos(observer->longitude_rad),
+      cos(observer->latitude_rad) * sin(observer->longitude_rad),
+      sin(observer->latitude_rad)};
+
+  sxform_c(POSITION_FRAME, SURFACE_OBSERVER_FRAME, et, eclipj2000_to_itrf93);
+  if (failed_c()) {
+    get_cspice_error(error, error_size);
+    return 0;
+  }
+
+  mxvg_c(eclipj2000_to_itrf93, state_eclipj2000, 6, 6, state_itrf93);
+
+  for (int offset = 0; offset <= 3; offset += 3) {
+    result->state_km[offset] = east[0] * state_itrf93[offset] +
+                                east[1] * state_itrf93[offset + 1] +
+                                east[2] * state_itrf93[offset + 2];
+    result->state_km[offset + 1] = north[0] * state_itrf93[offset] +
+                                    north[1] * state_itrf93[offset + 1] +
+                                    north[2] * state_itrf93[offset + 2];
+    result->state_km[offset + 2] = up[0] * state_itrf93[offset] +
+                                    up[1] * state_itrf93[offset + 1] +
+                                    up[2] * state_itrf93[offset + 2];
+  }
+
+  result->light_time_seconds = light_time;
+  result->et_seconds = et;
+  result->frame = ANGELUS_FRAME_TOPOCENTRIC_ENU;
+  result->abcorr = ANGELUS_ABCORR_CNS;
+  return 1;
+}
+
 BodyResult get_position(const char *target, const char *iso8601,
                         const AngelusSurfaceObserver *observer) {
   BodyResult result = {0};
@@ -226,8 +270,8 @@ BodyResult get_position(const char *target, const char *iso8601,
       return result;
     }
 
-    if (!populate_body_state(&result.topocentric, state, lt, time.et, result.error,
-                             sizeof(result.error)))
+    if (!populate_topocentric_enu_state(&result.topocentric, state, lt, time.et,
+                                        observer, result.error, sizeof(result.error)))
       return result;
 
     result.has_topocentric = 1;

@@ -74,11 +74,13 @@ defmodule Mix.Tasks.Angelus.Ephemeride do
       "Radial velocity (km/s)"
     ])
     |> Mix.shell().info()
+
+    print_topocentric_enu(ephemeride.bodies)
   end
 
   defp rows(entries) do
     Enum.map(entries, fn entry ->
-      solution = Map.get(entry.solutions, :topocentric, entry.solutions.geocentric)
+      solution = entry.solutions.geocentric
 
       [
         Map.fetch!(@names, entry.id),
@@ -91,6 +93,45 @@ defmodule Mix.Tasks.Angelus.Ephemeride do
         format_number(Map.get(solution, :radial_velocity_km_s))
       ]
     end)
+  end
+
+  defp print_topocentric_enu(bodies) do
+    case Enum.filter(bodies, &Map.has_key?(&1.solutions, :topocentric)) do
+      [] ->
+        :ok
+
+      topocentric_bodies ->
+        Mix.shell().info("\nTopocentric ENU state (x=east, y=north, z=ellipsoidal up):")
+
+        topocentric_bodies
+        |> Enum.map(&enu_row/1)
+        |> render_table([
+          "Body",
+          "East (km)",
+          "North (km)",
+          "Up (km)",
+          "East velocity (km/s)",
+          "North velocity (km/s)",
+          "Up velocity (km/s)",
+          "Light time (s)"
+        ])
+        |> Mix.shell().info()
+    end
+  end
+
+  defp enu_row(entry) do
+    state = entry.solutions.topocentric.state
+
+    [
+      Map.fetch!(@names, entry.id),
+      format_number(state.position_km.x),
+      format_number(state.position_km.y),
+      format_number(state.position_km.z),
+      format_number(state.velocity_km_s.x),
+      format_number(state.velocity_km_s.y),
+      format_number(state.velocity_km_s.z),
+      format_number(entry.solutions.topocentric.light_time_seconds)
+    ]
   end
 
   defp render_table(rows, header) do

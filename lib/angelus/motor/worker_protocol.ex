@@ -206,7 +206,7 @@ defmodule Angelus.Motor.WorkerProtocol do
   def coerce_body(_), do: {:error, :invalid_body_result}
 
   defp coerce_topocentric_solution(%{"topocentric" => topocentric}, et_seconds),
-    do: coerce_body_solution(topocentric, et_seconds)
+    do: coerce_topocentric_enu_solution(topocentric, et_seconds)
 
   defp coerce_topocentric_solution(_result, _et_seconds), do: {:ok, nil}
 
@@ -218,6 +218,36 @@ defmodule Angelus.Motor.WorkerProtocol do
   end
 
   defp coerce_body_solution(_solution, _et_seconds), do: {:error, :invalid_body_result}
+
+  defp coerce_topocentric_enu_solution(
+         %{
+           "state_km" => [x, y, z, vx, vy, vz],
+           "light_time_seconds" => light_time_seconds,
+           "frame" => "TOPOCENTRIC_ENU",
+           "observer" => "SURFACE_LOCATION",
+           "observer_frame" => "ITRF93",
+           "abcorr" => "CN+S"
+         },
+         et_seconds
+       ) do
+    values = [x, y, z, vx, vy, vz, light_time_seconds, et_seconds]
+
+    if Enum.all?(values, &is_number/1) do
+      {:ok,
+       %{
+         position_km: {x * 1.0, y * 1.0, z * 1.0},
+         velocity_km_s: {vx * 1.0, vy * 1.0, vz * 1.0},
+         light_time_seconds: light_time_seconds * 1.0,
+         et_seconds: et_seconds * 1.0,
+         frame: :topocentric_enu
+       }}
+    else
+      {:error, :invalid_body_result}
+    end
+  end
+
+  defp coerce_topocentric_enu_solution(_solution, _et_seconds),
+    do: {:error, :invalid_body_result}
 
   defp coerce_scientific_fields(%{
          "direction_j2000" => [direction_x, direction_y, direction_z],

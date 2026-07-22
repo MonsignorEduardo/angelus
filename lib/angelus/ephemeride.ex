@@ -65,11 +65,7 @@ defmodule Angelus.Ephemeride do
           solutions
 
         topocentric ->
-          Map.put(
-            solutions,
-            :topocentric,
-            physical_solution(topocentric, :surface_location, :itrf93)
-          )
+          Map.put(solutions, :topocentric, topocentric_enu_solution(topocentric))
       end
 
     %{id: id, kind: :body, solutions: solutions}
@@ -132,6 +128,26 @@ defmodule Angelus.Ephemeride do
       calculation: %{
         observer: observer,
         observer_frame: observer_frame,
+        aberration_correction: :converged_newtonian_stellar,
+        geometric?: false
+      }
+    }
+  end
+
+  defp topocentric_enu_solution(state) do
+    {east, north, up} = Map.fetch!(state, :position_km)
+    {east_velocity, north_velocity, up_velocity} = Map.fetch!(state, :velocity_km_s)
+
+    %{
+      state: %{
+        position_km: %{x: east, y: north, z: up},
+        velocity_km_s: %{x: east_velocity, y: north_velocity, z: up_velocity},
+        frame: :topocentric_enu
+      },
+      light_time_seconds: state.light_time_seconds,
+      calculation: %{
+        observer: :surface_location,
+        observer_frame: :itrf93,
         aberration_correction: :converged_newtonian_stellar,
         geometric?: false
       }

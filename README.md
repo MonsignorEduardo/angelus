@@ -90,9 +90,9 @@ ephemeride.time.utc
 ephemeride.bodies
 ```
 
-Each physical entry has `solutions.geocentric`. A solution declares its
-Cartesian state in km and km/s (`ECLIPJ2000`), normalized direction (`J2000`),
-true ecliptic and equatorial coordinates of date, instantaneous angular rates,
+Each physical entry has `solutions.geocentric`, which declares its Cartesian
+state in km and km/s (`ECLIPJ2000`), normalized direction (`J2000`), true
+ecliptic and equatorial coordinates of date, instantaneous angular rates,
 distance in AU, radial velocity, light time, observer, and aberration
 correction. Angles and rates are radians and radians/day unless a field states
 otherwise.
@@ -203,27 +203,10 @@ observer is supplied. Numeric values below are illustrative.
         },
         topocentric: %{
           state: %{
-            position_km: %{x: -289_000.0, y: -277_000.0, z: 35_000.0},
-            velocity_km_s: %{x: 0.60, y: -0.90, z: -0.01},
-            frame: :eclipj2000
+            position_km: %{x: -42.3, y: -366_000.0, z: 45_000.0},
+            velocity_km_s: %{x: -0.82, y: -0.04, z: 0.13},
+            frame: :topocentric_enu
           },
-          direction: %{x: -0.72, y: -0.66, z: -0.20, frame: :j2000},
-          ecliptic: %{
-            longitude_rad: 3.891664,
-            latitude_rad: 0.076419,
-            longitude_rate_rad_day: 0.164745,
-            latitude_rate_rad_day: -0.003,
-            frame: :true_ecliptic_of_date
-          },
-          equatorial: %{
-            right_ascension_rad: 3.872472,
-            declination_rad: -0.201669,
-            right_ascension_rate_rad_day: 0.158,
-            declination_rate_rad_day: -0.07,
-            frame: :true_equatorial_of_date
-          },
-          distance_au: 0.002677,
-          radial_velocity_km_s: 0.310626,
           light_time_seconds: 1.335,
           calculation: %{
             observer: :surface_location,
@@ -265,6 +248,13 @@ observer is supplied. Numeric values below are illustrative.
   ]
 }
 ```
+
+The ENU axes are `x = east`, `y = north`, and `z = ellipsoidal up`. The state
+is already relative to the surface observer; its velocity includes the Earth
+rotation through the time-dependent `ECLIPJ2000 -> ITRF93` transformation.
+Topocentric solutions intentionally omit direction, ecliptic/equatorial
+coordinates, angular rates, distance, and radial velocity to avoid redundant
+representations.
 
 Without `observer:`, `reference.observers` has only `:geocentric` and every
 physical body's `solutions` map has only `:geocentric`. `:north_node`,

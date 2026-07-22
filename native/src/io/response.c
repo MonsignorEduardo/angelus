@@ -110,6 +110,40 @@ fail:
   return NULL;
 }
 
+static cJSON *topocentric_enu_state_json(const AngelusBodyState *state) {
+  cJSON *result = cJSON_CreateObject();
+  if (!result)
+    return NULL;
+
+  cJSON *state_km = cJSON_AddArrayToObject(result, "state_km");
+  if (!state_km)
+    goto fail;
+
+  for (int i = 0; i < 6; i++) {
+    if (!isfinite(state->state_km[i]))
+      goto fail;
+    cJSON *number = cJSON_CreateNumber(state->state_km[i]);
+    if (!number || !cJSON_AddItemToArray(state_km, number)) {
+      cJSON_Delete(number);
+      goto fail;
+    }
+  }
+
+  if (!isfinite(state->light_time_seconds) ||
+      !cJSON_AddNumberToObject(result, "light_time_seconds", state->light_time_seconds) ||
+      !cJSON_AddStringToObject(result, "frame", "TOPOCENTRIC_ENU") ||
+      !cJSON_AddStringToObject(result, "observer", "SURFACE_LOCATION") ||
+      !cJSON_AddStringToObject(result, "observer_frame", "ITRF93") ||
+      !cJSON_AddStringToObject(result, "abcorr", "CN+S"))
+    goto fail;
+
+  return result;
+
+fail:
+  cJSON_Delete(result);
+  return NULL;
+}
+
 int send_ok_body(int id, const BodyResult *body) {
   cJSON *root = cJSON_CreateObject();
   if (!root || !body)
@@ -129,7 +163,7 @@ int send_ok_body(int id, const BodyResult *body) {
   }
 
   if (body->has_topocentric) {
-    cJSON *topocentric = body_state_json(&body->topocentric, "SURFACE_LOCATION", "ITRF93");
+    cJSON *topocentric = topocentric_enu_state_json(&body->topocentric);
     if (!topocentric || !cJSON_AddItemToObject(result, "topocentric", topocentric)) {
       cJSON_Delete(topocentric);
       goto fail;

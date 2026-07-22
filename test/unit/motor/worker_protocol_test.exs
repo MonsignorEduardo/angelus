@@ -59,15 +59,20 @@ defmodule Angelus.Motor.WorkerProtocolTest do
                "protocol_version" => 2,
                "et_seconds" => 42,
                "geocentric" => state,
-               "topocentric" =>
-                 Map.merge(state, %{
-                   "observer" => "SURFACE_LOCATION",
-                   "observer_frame" => "ITRF93"
-                 })
+               "topocentric" => %{
+                 "state_km" => [10, 20, 30, 40, 50, 60],
+                 "light_time_seconds" => 8,
+                 "frame" => "TOPOCENTRIC_ENU",
+                 "observer" => "SURFACE_LOCATION",
+                 "observer_frame" => "ITRF93",
+                 "abcorr" => "CN+S"
+               }
              })
 
     assert geocentric.position_km == {1.0, 2.0, 3.0}
     assert geocentric.et_seconds == 42.0
-    assert topocentric.velocity_km_s == {4.0, 5.0, 6.0}
+    assert topocentric.position_km == {10.0, 20.0, 30.0}
+    assert topocentric.velocity_km_s == {40.0, 50.0, 60.0}
+    assert topocentric.frame == :topocentric_enu
   end
 end
